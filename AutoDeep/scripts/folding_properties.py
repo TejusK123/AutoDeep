@@ -222,7 +222,8 @@ with warnings.catch_warnings():
 					selected_rows = selection_df[(selection_df['Leftmost Nucleotide'] == max_leftmost_nuc) & (selection_df['Position'] == max_position)]
 
 
-
+					if num_pages > len(selected_rows):
+						num_pages = len(selected_rows)
 
 					top_loci = selected_rows.iloc[np.argpartition(selected_rows['Counts'], -num_pages)[-num_pages:],:]
 					tdf = selection_df[(selection_df['Position'] - max_position) <= 20]
