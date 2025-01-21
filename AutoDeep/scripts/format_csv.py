@@ -7,7 +7,10 @@ def format_csv(csv_path):
 	output_file = os.path.join(current_dir, "AutoDeepRun/formatted_novel_miRNA.csv")
 	data = pd.read_csv(csv_path)
 	start_index = data.iloc[:,0][data.iloc[:,0] == 'novel miRNAs predicted by miRDeep2'].index[0]
-	end_index = data.iloc[:,0][data.iloc[:,0] == 'mature miRBase miRNAs detected by miRDeep2'].index[0]
+	try:
+		end_index = data.iloc[:,0][data.iloc[:,0] == 'mature miRBase miRNAs detected by miRDeep2'].index[0]
+	except:
+		end_index = data.shape[0]
 	novel_data = (data.iloc[start_index:end_index,0]).reset_index(drop=True)
 	novel_data = pd.DataFrame(novel_data)
 	novel_data.rename(columns=lambda x: novel_data.iloc[0,0], inplace=True)
