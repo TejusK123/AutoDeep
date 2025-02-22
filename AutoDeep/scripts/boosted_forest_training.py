@@ -108,7 +108,7 @@ merged_data = merged_data.iloc[:,1:-1]
 merged_data['mature_5\'u_or_3\'u'] = merged_data['mature_5\'u_or_3\'u'].astype('category').cat.codes
 merged_data['homologous_seed_in_miRBase'] = merged_data['homologous_seed_in_miRBase'].astype('category').cat.codes
 merged_data['significant_randfold_p-value'] = merged_data['significant_randfold_p-value'].astype('category').cat.codes
-merged_data['mature_seq_on_top'] = merged_data['mature_seq_on_top'].astype('category').cat.codes
+#merged_data['mature_seq_on_top'] = merged_data['mature_seq_on_top'].astype('category').cat.codes
 
 
 
@@ -190,7 +190,7 @@ config = {
 
 tuner = tune.Tuner(
 model_training, 
-tune_config = tune.TuneConfig(num_samples = 15000, 
+tune_config = tune.TuneConfig(num_samples = 15, 
                               search_alg = OptunaSearch(), 
                               scheduler = ASHAScheduler(),
                               metric = "weighted_f1_score", 

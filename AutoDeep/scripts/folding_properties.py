@@ -162,7 +162,7 @@ for i in range(len(folding_structure)):
 
 
 #print(len(mature_location), len(top_overhangs), len(three_prime_overhang))
-data = pd.DataFrame({'provisional_id' : loci_names, 'Folding Energy': [float(item[1:-1]) for item in folding_energies], '3\' Overhang Bot': three_prime_overhang, '3\' Overhang Top' : top_overhangs, 'mature_seq_on_top' : mature_location})
+data = pd.DataFrame({'provisional_id' : loci_names, 'Folding Energy': [float(item[1:-1]) for item in folding_energies], '3\' Overhang Bot': three_prime_overhang, '3\' Overhang Top' : top_overhangs})
 
 data2 = pd.read_csv(os.path.join(current_dir, "AutoDeepRun/feature_engineered_miRNA_Deep_data_novel_miRNAs.csv"))
 

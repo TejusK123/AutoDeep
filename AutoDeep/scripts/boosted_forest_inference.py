@@ -22,7 +22,7 @@ merged_data = pd.read_csv(data_dir)
 merged_data['mature_5\'u_or_3\'u'] = merged_data['mature_5\'u_or_3\'u'].astype('category').cat.codes
 merged_data['homologous_seed_in_miRBase'] = merged_data['homologous_seed_in_miRBase'].astype('category').cat.codes
 merged_data['significant_randfold_p-value'] = merged_data['significant_randfold_p-value'].astype('category').cat.codes
-merged_data['mature_seq_on_top'] = merged_data['mature_seq_on_top'].astype('category').cat.codes
+#merged_data['mature_seq_on_top'] = merged_data['mature_seq_on_top'].astype('category').cat.codes
 
 #Extract True labels and drop them from the data
 labels = merged_data['provisional_id']
@@ -46,7 +46,7 @@ inference_df['prediction'] = inference_df['prediction'].apply(lambda x: conversi
 inference_df['mature_5\'u_or_3\'u'] = inference_df['mature_5\'u_or_3\'u'].apply(lambda x: 'False' if x == 0 else 'True')
 inference_df['homologous_seed_in_miRBase'] = inference_df['homologous_seed_in_miRBase'].apply(lambda x: 'False' if x == 0 else 'True')
 inference_df['significant_randfold_p-value'] = inference_df['significant_randfold_p-value'].apply(lambda x: 'no' if x == 0 else 'yes')
-inference_df['mature_seq_on_top'] = inference_df['mature_seq_on_top'].apply(lambda x: 'False' if x == 0 else 'True')
+#inference_df['mature_seq_on_top'] = inference_df['mature_seq_on_top'].apply(lambda x: 'False' if x == 0 else 'True')
 
 # Save the results
 target_dir = os.path.join(current_dir, "AutoDeepRun/xgboost_judgement.csv")
