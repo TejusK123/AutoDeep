@@ -28,7 +28,6 @@ visualize() {
     fi
     
     if [[ -z "$file" ]]; then
-        echo "Starting model visualization"
         SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
         python "$SCRIPT_DIR/boosted_forest_visualization.py" "$@"
 
