@@ -9,7 +9,6 @@ class CustomUsageMsg(click.Command):
 @click.command()
 @click.option("--no_tree", is_flag = True, help="Do not output tree plots")
 @click.option("--output", "-o", default = "tree_plots", help="Output directory for tree plots")
-@click.argument("targets")
 def visualize(no_tree, output, targets):
     import xgboost
     from xgboost import XGBClassifier
