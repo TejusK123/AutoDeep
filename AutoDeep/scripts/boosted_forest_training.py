@@ -229,19 +229,10 @@ def train(no_db_data, tuning_rounds, output, targets_path):
 
     data_dir = os.path.join(current_dir, f"{output}.csv")
 
-<<<<<<< HEAD
-tuner = tune.Tuner(
-model_training, 
-tune_config = tune.TuneConfig(num_samples = 15000, 
-                              search_alg = OptunaSearch(), 
-                              scheduler = ASHAScheduler(),
-                              metric = "weighted_f1_score", 
-                              mode = "max"), 
-param_space = config
-)
-=======
+ 
+                            
     df.to_csv(data_dir, index = False)
->>>>>>> click_implementation
+
 
     print(f"Training log saved at: {data_dir}")
 

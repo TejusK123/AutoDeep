@@ -51,7 +51,7 @@ def visualize(no_tree, output):
 
                 # Render the DOT data to a PNG
                 graph = graphviz.Source(dot_data)
-                graph.render(f"tree_plots_{timestamp}/tree_plot{i}", format="png")
+                graph.render(f"{output}{timestamp}/tree_plot{i}", format="png")
 
 
 
