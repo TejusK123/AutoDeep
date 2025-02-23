@@ -6,10 +6,11 @@ class CustomUsageMsg(click.Command):
         formatter.write_text("Usage: AutoDeep visualize [OPTIONS]")
 
 
-@click.command(cls = CustomUsageMsg)
+@click.command()
 @click.option("--no_tree", is_flag = True, help="Do not output tree plots")
 @click.option("--output", "-o", default = "tree_plots", help="Output directory for tree plots")
-def visualize(no_tree, output):
+@click.argument("targets")
+def visualize(no_tree, output, targets):
     import xgboost
     from xgboost import XGBClassifier
     import matplotlib.pyplot as plt

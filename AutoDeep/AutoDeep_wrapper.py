@@ -30,9 +30,9 @@ def main():
     if len(sys.argv) <= 1:
         print(f"Usage: {os.path.basename(sys.argv[0])} <dirname>")
         sys.exit(1)
-    if sys.argv[1] == "train" and len(sys.argv) <= 2:
-        print(f"Usage: {os.path.basename(sys.argv[0])} {os.path.basename(sys.argv[1])} <filename> <flags>")
-        sys.exit(1)
+    # if sys.argv[1] == "train" and len(sys.argv) <= 2:
+    #     print(f"Usage: {os.path.basename(sys.argv[0])} {os.path.basename(sys.argv[1])} <filename> <flags>")
+    #     sys.exit(1)
     subprocess.run(['bash', script_path] + sys.argv[1:], check=True)
 
 if __name__ == '__main__':
