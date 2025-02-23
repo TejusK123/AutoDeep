@@ -4,20 +4,20 @@
 #train: Train the model
 train() {
     file="$1"
-    if [[ -z "$file" ]]; then
-        echo "Usage: $0 train <file> <flags>"
-        exit 1
-    fi
+    # if [[ -z "$file" ]]; then
+    #     echo "Usage: $0 train <file> <flags>"
+    #     exit 1
+    # fi
 
-    if [[ -f "$file" ]]; then
-        echo "Starting model training"
+    #if [[ -f "$file" ]]; then
+        
         SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
         python "$SCRIPT_DIR/boosted_forest_training.py" "$@"
 
-    else
-        echo "Error: File '$file' does not exist."
-        exit 1
-    fi
+    #else
+        #echo "Error: File '$file' does not exist."
+        #exit 1
+    #fi
 }
 
 #visualize: Visualize the model
@@ -28,7 +28,6 @@ visualize() {
     fi
     
     if [[ -z "$file" ]]; then
-        echo "Starting model visualization"
         SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
         python "$SCRIPT_DIR/boosted_forest_visualization.py" "$@"
 
