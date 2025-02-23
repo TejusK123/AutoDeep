@@ -190,7 +190,7 @@ config = {
 
 tuner = tune.Tuner(
 model_training, 
-tune_config = tune.TuneConfig(num_samples = 15, 
+tune_config = tune.TuneConfig(num_samples = 15000, 
                               search_alg = OptunaSearch(), 
                               scheduler = ASHAScheduler(),
                               metric = "weighted_f1_score", 
