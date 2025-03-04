@@ -223,7 +223,10 @@ with warnings.catch_warnings():
 
 
 
-
+					
+					if num_pages > selected_rows.shape[0]:
+						num_pages = selected_rows.shape[0]
+					
 					top_loci = selected_rows.iloc[np.argpartition(selected_rows['Counts'], -num_pages)[-num_pages:],:]
 					tdf = selection_df[(selection_df['Position'] - max_position) <= 20]
 

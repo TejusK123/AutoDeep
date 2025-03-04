@@ -44,7 +44,7 @@ data.insert(14, 'consensus_precursor_sequence_length', data['consensus_precursor
 
 data.insert(11, 'mature_5\'u_or_3\'u', data['consensus_mature_sequence'].apply(lambda x: x[0] == 'u' or x[-1] == 'u'))
 
-data = data.drop(columns = ['consensus_precursor_sequeunce', 'consensus_star_sequence', 'consensus_mature_sequence', 'precursor_coordinate'])
+data = data.drop(columns = ['consensus_precursor_sequeunce', 'consensus_star_sequence', 'consensus_mature_sequence', 'precursor_coordinate'], errors = 'ignore')
 
 
 
