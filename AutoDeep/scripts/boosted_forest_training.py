@@ -134,7 +134,7 @@ def train(no_db_data, tuning_rounds, output, targets_path):
     from ray import tune, train
     from ray.tune.search.optuna import OptunaSearch
     from ray.tune.schedulers import ASHAScheduler
-    from ray.tune.stopper import ExperimentPlateauStopper
+    
 
     def model_training(config):
         weighted_f1_scores = []
@@ -186,13 +186,12 @@ def train(no_db_data, tuning_rounds, output, targets_path):
         "lambda" : tune.loguniform(1e-3, 1),
         "colsample_bytree" : tune.uniform(0.8, 1),
         "colsample_bylevel" : tune.uniform(0.8,1),
-
+	"colsample_bynode" : tune.uniform(0.8,1),
     }
 
 
     tuner = tune.Tuner(
     model_training, 
-    run_config = train.RunConfig(stop = ExperimentPlateauStopper(metric = "weighted_f1_score", mode = "max", patience = 5)),
     tune_config = tune.TuneConfig(num_samples = tuning_rounds, 
                                 search_alg = OptunaSearch(), 
                                 scheduler = ASHAScheduler(),
