@@ -29,7 +29,8 @@ def find_csv_files(directory):
                 
     # If no CSV files found, notify the user
     if not csv_files:
-        print("No CSV files found in the specified directory.")
+        print("No CSV files found in the specified directory. Please run AutoDeep --help to see the expected directory structure.")
+        sys.exit(1)
     
     # Example of output - Here you can add any processing you need on each CSV
     for csv_file in csv_files:

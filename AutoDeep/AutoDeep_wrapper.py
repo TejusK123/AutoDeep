@@ -13,11 +13,18 @@ def main():
 
     # Run the shell script
     if "--help" in sys.argv[1] or "-h" in sys.argv[1]:
-        print(f"Core Usage: {os.path.basename(sys.argv[0])} <dirname>")
+        print(f"Core Usage: {os.path.basename(sys.argv[0])} <directory>")
         print()
         print("Further stratifies mirDeep2 outputs into Candidate, Confident, or Falsepositive labels using ML approach")
         print()
         print("Input: Directory containing mirDeep2 outputs")
+        print("The input Directory should have the following file structure:")
+        print()
+        print("    ├── directory in which miRDeep2 was run")
+        print("    │   ├── result_<[0-9]>.csv")
+        print("    │   ├── pdfs_<[0-9]>")
+        print("    │   │   ├── <loci_name_[0-9]>.pdf")
+        print()
         print("Output: Directory containing AutoDeep outputs")
         print()
         print(f"Model Training Usage: AutoDeep train [Options]")

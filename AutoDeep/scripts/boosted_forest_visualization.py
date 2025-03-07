@@ -1,5 +1,5 @@
 import click
-
+from tqdm import tqdm
 
 class CustomUsageMsg(click.Command):
     def format_usage(self, ctx, formatter):
@@ -45,13 +45,13 @@ def visualize(no_tree, output):
         import graphviz
         num_rounds = model.get_booster().num_boosted_rounds()
 
-        with click.progressbar(range(num_rounds), label="Rendering tree plots") as bar:
-            for i in bar:
-                dot_data = model.get_booster().get_dump(dump_format="dot")[i]
+        
+        for i in tqdm(range(num_rounds)):
+            dot_data = model.get_booster().get_dump(dump_format="dot")[i]
 
-                # Render the DOT data to a PNG
-                graph = graphviz.Source(dot_data)
-                graph.render(f"{output}{timestamp}/tree_plot{i}", format="png")
+            # Render the DOT data to a PNG
+            graph = graphviz.Source(dot_data)
+            graph.render(f"{output}{timestamp}/tree_plot{i}", format="png")
 
 
 
