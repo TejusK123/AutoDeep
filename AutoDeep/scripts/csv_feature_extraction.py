@@ -6,10 +6,16 @@ current_dir = os.getcwd()
 data_dir = os.path.join(current_dir, "AutoDeepRun/formatted_novel_miRNA.csv")
 
 data = pd.read_csv(data_dir)
-data.insert(2, "mirDeep_sensitivity", data['estimated_probability_miRNA_candidate_is_true_positive'].apply(lambda x: float(x.split("+/-")[0])))
+try:
+    data.insert(2, "mirDeep_sensitivity", data['estimated_probability_miRNA_candidate_is_true_positive'].apply(lambda x: float(x.split("+/-")[0])))
+except:
+    data.insert(2, "mirDeep_sensitivity", data['estimated_probability_miRNA_candidate_is_true_positive'].apply(lambda x: None))
 
-data.insert(3, 'sensitivity_uncertainty', data['estimated_probability_miRNA_candidate_is_true_positive'].apply(lambda x: float(x.split("+/-")[1][:-1])))
+try:
 
+    data.insert(3, 'sensitivity_uncertainty', data['estimated_probability_miRNA_candidate_is_true_positive'].apply(lambda x: float(x.split("+/-")[1][:-1])))
+except:
+    data.insert(3, 'sensitivity_uncertainty', data['estimated_probability_miRNA_candidate_is_true_positive'].apply(lambda x: None))
 data = data.drop(columns = ['estimated_probability_miRNA_candidate_is_true_positive'])
 
 
