@@ -11,14 +11,20 @@ class CustomUsageMsg(click.Command):
 @click.option("--tuning_rounds", "-r", default = 10, help="Number of tuning rounds: Default <10>", metavar = "<int>")
 @click.option("--output", "-o", default = "training_log", help="Name of output training_log file", metavar = "<str>")
 def train(no_db_data, tuning_rounds, output, targets_path):
-    """ Trains the model with given targets 
+    """ Trains the model with given targets (optional) 
 
     
-    <targets_path> is a CSV file with loci names in first column and class names in second column (Candidate, Confident, falsepositive).
+    --targets_path takes a CSV file with loci names in first column and class names in second column (Candidate, Confident, falsepositive).
     The CSV file must have loci names in accordance with the fully_formatted_data.csv file.
     
 
-    Don't specify <targets_path> if you want to use just the database data.
+    Don't specify --targets_path if you want to use just the database data.
+
+    Sample Usage 1: 
+    
+    Ran AutoDeep, didn't like its outputs and want to retrain the model with your own labels: 
+
+    AutoDeep train --targets_path <labels.csv> -r 1000
     
     """
     import pandas as pd 
