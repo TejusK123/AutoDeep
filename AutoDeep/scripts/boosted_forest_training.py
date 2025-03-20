@@ -10,7 +10,9 @@ class CustomUsageMsg(click.Command):
 @click.option("--no_db_data", "-n", is_flag = True, help="Flag that omits original dataset from training")
 @click.option("--tuning_rounds", "-r", default = 10, help="Number of tuning rounds: Default <10>", metavar = "<int>")
 @click.option("--output", "-o", default = "training_log", help="Name of output training_log file", metavar = "<str>")
-def train(no_db_data, tuning_rounds, output, targets_path):
+@click.option("--no_weights", "-nw", is_flag = True, help="Flag that omits saving the model weights (recommended for testing)")
+@click.option("--hyperparameters", "-hp", help = "Path to hyperparameter configuration file in case of manual tuning", metavar = "<str>", type = click.Path(exists = True, dir_okay = False))
+def train(no_db_data, tuning_rounds, output, targets_path, no_weights, hyperparameters):
     """ Trains the model with given targets 
 
     
@@ -126,115 +128,140 @@ def train(no_db_data, tuning_rounds, output, targets_path):
     accuracy = accuracy_score(y_test, y_pred)
 
     print(f"naive model accuracy post-train {accuracy}")
-    print(f"{model.get_xgb_params()}")
-
-
-    #----raytune hyperparameter tuning
-    print("Starting hyperparameter tuning")
-    from ray import tune, train
-    from ray.tune.search.optuna import OptunaSearch
-    from ray.tune.schedulers import ASHAScheduler
     
 
-    def model_training(config):
-        weighted_f1_scores = []
-        accuracies = []
-        macro_f1_scores = []
-        for i in range(10):
-            X_train, X_test, y_train, y_test = train_test_split(merged_data, targets, test_size=0.2, stratify = targets)
-            classes_weights = class_weight.compute_sample_weight(class_weight = 'balanced', y = y_train)
-            model = XGBClassifier(**config)
-            model.fit(X_train, y_train, sample_weight = classes_weights)
-            y_pred = model.predict(X_test)
-            accuracy = accuracy_score(y_test, y_pred)
-            weighted_f1score = f1_score(y_test, y_pred, average = 'weighted')
-            macro_f1score = f1_score(y_test, y_pred, average = 'macro')
-            accuracies.append(accuracy)
-            macro_f1_scores.append(macro_f1score)
-            weighted_f1_scores.append(weighted_f1score)
+    if hyperparameters:
+        print("Using manual hyperparameters")
+        X_train, X_test, y_train, y_test = train_test_split(merged_data, targets, test_size=0.2, stratify = targets)
+        classes_weights = class_weight.compute_sample_weight(class_weight = 'balanced', y = y_train)
+        with open(hyperparameters, 'r') as f:
+            lines = list(filter(lambda x: len(x) != 0, (item.split() for item in f.readlines())))
+        
+
+        valid_attributes = ['max_depth', 'min_child_weight', 'subsample', 'eta', 'n_estimators', 'gamma', 'base_score', 'alpha', 'lambda', 'colsample_bytree', 'colsample_bylevel', 'colsample_bynode']
+        input_check = [(item not in valid_attributes, item) for item in [ind[0] for ind in lines]]
+        
+        if any([item[0] for item in input_check]):
+            print(f"Invalid hyperparameter(s): {[item[1] for item in input_check if item[0] == True]}")
+            sys.exit(1)
+
+        config = {item[0] : eval(item[-1]) for item in lines}
+        best_model = XGBClassifier(**config)
+        best_model.fit(X_train, y_train, sample_weight = classes_weights)
+        y_pred = best_model.predict(X_test)
+        accuracy = accuracy_score(y_test, y_pred)
+        weighted_f1score = f1_score(y_test, y_pred, average = 'weighted')
+        macro_f1score = f1_score(y_test, y_pred, average = 'macro')
+        print(f"Tuned Model Metrics:")
+        print(f"Accuracy: {accuracy}")
+        print(f"Weighted F1 score: {weighted_f1score}")
+        print(f"Macro F1 score: {macro_f1score}")
+    else:
+        #----raytune hyperparameter tuning
+        print("Starting hyperparameter tuning")
+        from ray import tune, train
+        from ray.tune.search.optuna import OptunaSearch
+        from ray.tune.schedulers import ASHAScheduler
+        
+
+        def model_training(config):
+            weighted_f1_scores = []
+            accuracies = []
+            macro_f1_scores = []
+            for i in range(10):
+                X_train, X_test, y_train, y_test = train_test_split(merged_data, targets, test_size=0.2, stratify = targets)
+                classes_weights = class_weight.compute_sample_weight(class_weight = 'balanced', y = y_train)
+                model = XGBClassifier(**config)
+                model.fit(X_train, y_train, sample_weight = classes_weights)
+                y_pred = model.predict(X_test)
+                accuracy = accuracy_score(y_test, y_pred)
+                weighted_f1score = f1_score(y_test, y_pred, average = 'weighted')
+                macro_f1score = f1_score(y_test, y_pred, average = 'macro')
+                accuracies.append(accuracy)
+                macro_f1_scores.append(macro_f1score)
+                weighted_f1_scores.append(weighted_f1score)
+                
+
+            accuracy = np.mean(accuracies)
             
+            stds_acc = np.std(accuracies)
+            
+            weighted_f1_score = np.mean(weighted_f1_scores)
 
-        accuracy = np.mean(accuracies)
-        
-        stds_acc = np.std(accuracies)
-        
-        weighted_f1_score = np.mean(weighted_f1_scores)
+            stds_weighted_f1_score = np.std(weighted_f1_scores)
 
-        stds_weighted_f1_score = np.std(weighted_f1_scores)
+            macro_f1_score = np.mean(macro_f1_scores)
 
-        macro_f1_score = np.mean(macro_f1_scores)
+            stds_macro_f1_score = np.std(macro_f1_scores)
+            train.report({'mean_accuracy': accuracy,
+                        "std_accuracy" : stds_acc, 
+                        'weighted_f1_score' : weighted_f1_score,
+                        'std_weighted_f1_score' : stds_weighted_f1_score,
+                        "macro_f1_score" : macro_f1_score,
+                        "std_macro_f1_score" : stds_macro_f1_score,
+                        'done': True})
 
-        stds_macro_f1_score = np.std(macro_f1_scores)
-        train.report({'mean_accuracy': accuracy,
-                    "std_accuracy" : stds_acc, 
-                    'weighted_f1_score' : weighted_f1_score,
-                    'std_weighted_f1_score' : stds_weighted_f1_score,
-                    "macro_f1_score" : macro_f1_score,
-                    "std_macro_f1_score" : stds_macro_f1_score,
-                    'done': True})
-
-    config = {
-        "objective": "multi:softprob",
-        "max_depth": tune.randint(1, 6),
-        "min_child_weight": tune.choice([1, 2, 3, 4]),
-        "subsample": tune.uniform(0.5, 1.0),
-        "eta": tune.loguniform(1e-4, 1e-1),
-        "n_estimators": tune.randint(100, 1000),
-        "gamma": tune.uniform(0, 1),
-        "base_score": tune.uniform(0.33, 0.66),
-        "alpha" : tune.loguniform(1e-3, 10),
-        "lambda" : tune.loguniform(1e-3, 1),
-        "colsample_bytree" : tune.uniform(0.8, 1),
-        "colsample_bylevel" : tune.uniform(0.8,1),
-	"colsample_bynode" : tune.uniform(0.8,1),
-    }
+        config = {
+            "objective": "multi:softprob",
+            "max_depth": tune.randint(1, 6),
+            "min_child_weight": tune.choice([1, 2, 3, 4]),
+            "subsample": tune.uniform(0.5, 1.0),
+            "eta": tune.loguniform(1e-4, 1e-1),
+            "n_estimators": tune.randint(100, 1000),
+            "gamma": tune.uniform(0, 1),
+            "base_score": tune.uniform(0.33, 0.66),
+            "alpha" : tune.loguniform(1e-3, 10),
+            "lambda" : tune.loguniform(1e-3, 1),
+            "colsample_bytree" : tune.uniform(0.8, 1),
+            "colsample_bylevel" : tune.uniform(0.8,1),
+        "colsample_bynode" : tune.uniform(0.8,1),
+        }
 
 
-    tuner = tune.Tuner(
-    model_training, 
-    tune_config = tune.TuneConfig(num_samples = tuning_rounds, 
-                                search_alg = OptunaSearch(), 
-                                scheduler = ASHAScheduler(),
-                                metric = "weighted_f1_score", 
-                                mode = "max"), 
-    param_space = config
-    )
+        tuner = tune.Tuner(
+        model_training, 
+        tune_config = tune.TuneConfig(num_samples = tuning_rounds, 
+                                    search_alg = OptunaSearch(), 
+                                    scheduler = ASHAScheduler(),
+                                    metric = "weighted_f1_score", 
+                                    mode = "max"), 
+        param_space = config
+        )
 
-    results = tuner.fit()
+        results = tuner.fit()
 
-    best_result = results.get_best_result( 
-        metric="weighted_f1_score", mode="max")
-    # Get the best checkpoint corresponding to the best result.
-    best_checkpoint = best_result.checkpoint 
-    # Get a dataframe for the last reported results of all of the trials
-    df = results.get_dataframe() 
-
-
-    #print(f"Max Accuracy is {np.max(df['mean_accuracy'])} with std {df.loc[df['mean_accuracy'] == np.max(df['mean_accuracy']), 'std_accuracy'].iloc[0]}")
-    for item in best_result.metrics.keys():
-        print(f"{item} : {best_result.metrics[item]}")
-    print(f"The corresponding config is {best_result.config}")
-    #print(f"Max weighted_f1_score is {np.max(df['weighted_f1_score'])}")
+        best_result = results.get_best_result( 
+            metric="weighted_f1_score", mode="max")
+        # Get the best checkpoint corresponding to the best result.
+        best_checkpoint = best_result.checkpoint 
+        # Get a dataframe for the last reported results of all of the trials
+        df = results.get_dataframe() 
 
 
-    best_model = XGBClassifier(**best_result.config)
-    best_model.fit(X_train, y_train)
+        #print(f"Max Accuracy is {np.max(df['mean_accuracy'])} with std {df.loc[df['mean_accuracy'] == np.max(df['mean_accuracy']), 'std_accuracy'].iloc[0]}")
+        for item in best_result.metrics.keys():
+            print(f"{item} : {best_result.metrics[item]}")
+        print(f"The corresponding config is {best_result.config}")
+        #print(f"Max weighted_f1_score is {np.max(df['weighted_f1_score'])}")
 
 
-    best_model.save_model(weights_path)
-
-    print(f"Updated model saved at: {weights_path}")
-
-    current_dir = os.getcwd()
-
-    data_dir = os.path.join(current_dir, f"{output}.csv")
-
- 
-                            
-    df.to_csv(data_dir, index = False)
+        current_dir = os.getcwd()
+        data_dir = os.path.join(current_dir, f"{output}.csv")                 
+        df.to_csv(data_dir, index = False)
+        print(f"Training log saved at: {data_dir}")
 
 
-    print(f"Training log saved at: {data_dir}")
+        best_model = XGBClassifier(**best_result.config)
+        best_model.fit(X_train, y_train)
+
+    if no_weights:
+        print("Model weights not saved")
+        pass
+    else:
+        best_model.save_model(weights_path)
+        print(f"Updated model saved at: {weights_path}")
+
+    
 
 
 if __name__ == "__main__":
