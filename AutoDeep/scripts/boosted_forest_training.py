@@ -10,15 +10,10 @@ class CustomUsageMsg(click.Command):
 @click.option("--no_db_data", "-n", is_flag = True, help="Flag that omits original dataset from training")
 @click.option("--tuning_rounds", "-r", default = 10, help="Number of tuning rounds: Default <10>", metavar = "<int>")
 @click.option("--output", "-o", default = "training_log", help="Name of output training_log file", metavar = "<str>")
-<<<<<<< HEAD
 @click.option("--no_weights", "-nw", is_flag = True, help="Flag that omits saving the model weights (recommended for testing)")
 @click.option("--hyperparameters", "-hp", help = "Path to hyperparameter configuration file in case of manual tuning", metavar = "<str>", type = click.Path(exists = True, dir_okay = False))
 def train(no_db_data, tuning_rounds, output, targets_path, no_weights, hyperparameters):
     """ Trains the model with given targets 
-=======
-def train(no_db_data, tuning_rounds, output, targets_path):
-    """ Trains the model with given targets (optional) 
->>>>>>> origin
 
     
     --targets_path takes a CSV file with loci names in first column and class names in second column (Candidate, Confident, falsepositive).
