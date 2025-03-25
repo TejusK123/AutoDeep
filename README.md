@@ -21,7 +21,7 @@ Within the Directory, and with the AutoDeep conda environment activated, type
 pip install -e .
 ```
 
-##Script Reference
+## Script Reference
 
 ### AutoDeep 
 
