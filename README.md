@@ -3,7 +3,7 @@
 
 Authors: Manitejus Kotikalapudi
 
-AutoDeep is a software that further stratifies miRDeep2 (Mackowiak, Friedländer) outputs into Candidate, Confident, and Potential False-Positive Labels
+AutoDeep is a tree-boosting software that further stratifies miRDeep2 (Mackowiak, Friedländer) outputs into Candidate, Confident, and Potential False-Positive Labels
 
 
 ## Requirements
