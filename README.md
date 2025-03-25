@@ -60,15 +60,15 @@ Must be run within AutoDeepRun directory
 
 #### Flags
 * -n Omits original training data from model training (i.e only uses your inputs)
-  -t, --targets_path <str>      Path to targets file
-  -n, --no_db_data              Flag that omits original dataset from training
-  -r, --tuning_rounds <int>     Number of tuning rounds: Default <10>
-  -o, --output <str>            Name of output training_log file
-  -nw, --no_weights             Flag that omits saving the model weights
+* -t, --targets_path <str>      Path to targets file
+ * -n, --no_db_data              Flag that omits original dataset from training
+ * -r, --tuning_rounds <int>     Number of tuning rounds: Default <10>
+ * -o, --output <str>            Name of output training_log file
+ * -nw, --no_weights             Flag that omits saving the model weights
                                 (recommended for testing)
-  -hp, --hyperparameters <str>  Path to hyperparameter configuration file in
+ * -hp, --hyperparameters <str>  Path to hyperparameter configuration file in
                                 case of manual tuning
-  --help                        Show this message and exit.
+ * --help                        Show this message and exit.
 ### AutoDeep visualize
 
 #### Description
