@@ -82,3 +82,8 @@ N/A
 #### Output
 * Folder containing relevant figures as png
 
+#### Flags 
+ * --no_tree          Do not output tree plots
+  * -o, --output TEXT  Output directory for tree plots
+  * --help             Show this message and exit.
+
