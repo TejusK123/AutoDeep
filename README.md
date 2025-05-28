@@ -8,7 +8,7 @@ AutoDeep is a tree-boosting software that further stratifies miRDeep2 (Mackowiak
 
 ## Requirements
 
-Linux system, Conda Environment generated from AutoDeep/AutoDeep.yml file
+Linux system with GCC, Conda Environment generated from AutoDeep/AutoDeep.yml file
 
 ## Installation
 
