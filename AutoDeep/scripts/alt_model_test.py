@@ -1,0 +1,281 @@
+import click
+
+
+class CustomUsageMsg(click.Command):
+	def format_usage(self, ctx, formatter):
+		formatter.write_text("Usage: AutoDeep train-svm [OPTIONS]")
+
+
+@click.command(cls=CustomUsageMsg)
+@click.option("--targets_path", "-t", help="Path to targets file", metavar="<str>", type=click.Path(exists=True, dir_okay=False))
+@click.option("--no_db_data", "-n", is_flag=True, help="Flag that omits original dataset from training")
+@click.option("--tuning_rounds", "-r", default=10, help="Number of tuning rounds: Default <10>", metavar="<int>")
+@click.option("--output", "-o", default="svm_training_log", help="Name of output training_log file", metavar="<str>")
+@click.option("--no_weights", "-nw", is_flag=True, help="Flag that omits saving the model weights (recommended for testing)")
+@click.option("--hyperparameters", "-hp", help="Path to hyperparameter configuration file in case of manual tuning", metavar="<str>", type=click.Path(exists=True, dir_okay=False))
+def train_svm(no_db_data, tuning_rounds, output, targets_path, no_weights, hyperparameters):
+	"""Trains an SVM model using the same data layout as the other training scripts.
+
+	Behavior mirrors `boosted_forest_training.py`:
+	- Loads CSVs from `training_data/` unless `--no_db_data` is set
+	- Optionally merges a user-provided `--targets_path` (CSV must have 'provisional_id' and class label)
+	- Preprocesses categorical columns using category codes
+	- Trains a naive SVC pipeline, then either uses manual hyperparameters or performs randomized search
+	- Saves best model to `model_weights/svm_model.pkl` unless `--no_weights` is set
+	"""
+	import os
+	import sys
+	import time
+	import pandas as pd
+	import numpy as np
+	from sklearn.model_selection import train_test_split
+	from sklearn.metrics import accuracy_score, f1_score
+	from sklearn.svm import SVC
+	from sklearn.preprocessing import StandardScaler
+	from sklearn.pipeline import Pipeline
+	from sklearn.utils import class_weight
+	import joblib
+
+	# Loading all relevant paths
+	base_path = os.path.split(os.path.dirname(os.path.realpath(__file__)))[0]
+	weights_path = os.path.join(base_path, "model_weights/svm_model.pkl")
+	data_path = os.path.join(base_path, "training_data")
+	current_dir = os.getcwd()
+
+	if "AutoDeepRun" not in os.path.basename(current_dir):
+		print("Please run in AutoDeepRun directory")
+		sys.exit(1)
+
+	if no_db_data and targets_path is None:
+		print("Error: No data to train on: Unset flag -n/--no_db_data or provide targets file")
+		sys.exit(1)
+
+	# Load database CSVs
+	dfs = []
+	if not no_db_data:
+		for root, dirs, files in os.walk(data_path):
+			for file in files:
+				try:
+					tempdf = pd.read_csv(os.path.join(data_path, file))
+					dfs.append(tempdf)
+				except Exception:
+					# skip non-csv or malformed files
+					continue
+
+		if dfs != []:
+			training_data = pd.concat(dfs, ignore_index=True)
+			print(training_data.shape, "Shape of database data")
+		else:
+			training_data = pd.DataFrame()
+	else:
+		training_data = pd.DataFrame()
+
+	# Merge user targets if provided
+	if targets_path is not None:
+		data = pd.read_csv("fully_formatted_data.csv")
+		merged_data = pd.merge(data, pd.read_csv(targets_path), on='provisional_id')
+		merged_data = merged_data[merged_data.iloc[:, -1].isin(["Candidate", "Confident", "falsepositive"])]
+		print(f"input data shape before merging with database data: {merged_data.shape}")
+
+		# Save a copy into the training_data folder
+		try:
+			merged_data.to_csv(os.path.join(data_path, f"{os.path.basename(targets_path)}_{str(round(time.time()))}.csv"), index=False)
+		except Exception:
+			pass
+
+		try:
+			merged_data = pd.concat([training_data, merged_data], ignore_index=True)
+		except Exception:
+			pass
+
+		print(merged_data.shape, "after merging with database data")
+	else:
+		merged_data = training_data
+
+	if merged_data is None or merged_data.shape[0] == 0:
+		print("No data available for training")
+		sys.exit(1)
+
+	merged_data.drop_duplicates(inplace=True)
+	print(merged_data.shape, "After dropping duplicates")
+
+	# Targets are expected to be the last column
+	targets = merged_data.iloc[:, -1].astype('category').cat.codes
+
+	# Features: drop first column (id) and last column (target)
+	X = merged_data.iloc[:, 1:-1].copy()
+
+	# Encode known categorical columns the same way as other scripts
+	cat_columns = ['mature_5\'u_or_3\'u', 'homologous_seed_in_miRBase', 'significant_randfold_p-value']
+	for col in cat_columns:
+		if col in X.columns:
+			X[col] = X[col].astype('category').cat.codes
+
+	# Train/test split
+	X_train, X_test, y_train, y_test = train_test_split(X, targets, test_size=0.2, stratify=targets if len(np.unique(targets))>1 else None)
+
+	print("Starting training (Naive SVM)")
+	base_pipeline = Pipeline([
+		('scaler', StandardScaler()),
+		('svc', SVC(probability=True, class_weight='balanced', random_state=42))
+	])
+
+	base_pipeline.fit(X_train, y_train)
+	y_pred = base_pipeline.predict(X_test)
+	accuracy = accuracy_score(y_test, y_pred)
+	print(f"naive SVM accuracy post-train {accuracy}")
+
+	# If manual hyperparameters provided, use them for SVC
+	if hyperparameters:
+		print("Using manual hyperparameters for SVC")
+		with open(hyperparameters, 'r') as f:
+			lines = list(filter(lambda x: len(x) != 0, (item.split() for item in f.readlines())))
+		# Expect lines like: param value
+		config = {item[0]: eval(item[-1]) for item in lines}
+		# Map config keys to the 'svc' step in the pipeline
+		svc_config = {f'svc__{k}': v for k, v in config.items()}
+		svc = Pipeline([
+			('scaler', StandardScaler()),
+			('svc', SVC(probability=True, class_weight='balanced', random_state=42, **{k: v for k, v in config.items() if k in SVC().get_params()}))
+		])
+		svc.fit(X_train, y_train)
+		y_pred = svc.predict(X_test)
+		accuracy = accuracy_score(y_test, y_pred)
+		weighted_f1score = f1_score(y_test, y_pred, average='weighted')
+		macro_f1score = f1_score(y_test, y_pred, average='macro')
+		print(f"Manual-tuned Model Metrics:")
+		print(f"Accuracy: {accuracy}")
+		print(f"Weighted F1 score: {weighted_f1score}")
+		print(f"Macro F1 score: {macro_f1score}")
+		best_model = svc
+	else:
+		# Ray Tune hyperparameter tuning (matching boosted_forest_training.py)
+		print("Starting hyperparameter tuning")
+		from ray import tune, train
+		from ray.tune.search.optuna import OptunaSearch
+		from ray.tune.schedulers import ASHAScheduler
+
+		def model_training(config):
+			weighted_f1_scores = []
+			accuracies = []
+			macro_f1_scores = []
+			for i in range(10):
+				X_train_cv, X_test_cv, y_train_cv, y_test_cv = train_test_split(X, targets, test_size=0.2, stratify=targets)
+				
+				# Build pipeline with config
+				pipeline = Pipeline([
+					('scaler', StandardScaler()),
+					('svc', SVC(
+						C=config['C'],
+						kernel=config['kernel'],
+						gamma=config['gamma'],
+						degree=config.get('degree', 3),
+						coef0=config.get('coef0', 0.0),
+						probability=True,
+						class_weight='balanced',
+						random_state=42
+					))
+				])
+				
+				pipeline.fit(X_train_cv, y_train_cv)
+				y_pred_cv = pipeline.predict(X_test_cv)
+				
+				accuracy = accuracy_score(y_test_cv, y_pred_cv)
+				weighted_f1score = f1_score(y_test_cv, y_pred_cv, average='weighted')
+				macro_f1score = f1_score(y_test_cv, y_pred_cv, average='macro')
+				
+				accuracies.append(accuracy)
+				macro_f1_scores.append(macro_f1score)
+				weighted_f1_scores.append(weighted_f1score)
+
+			accuracy = np.mean(accuracies)
+			stds_acc = np.std(accuracies)
+			weighted_f1_score = np.mean(weighted_f1_scores)
+			stds_weighted_f1_score = np.std(weighted_f1_scores)
+			macro_f1_score = np.mean(macro_f1_scores)
+			stds_macro_f1_score = np.std(macro_f1_scores)
+			
+			train.report({
+				'mean_accuracy': accuracy,
+				"std_accuracy": stds_acc,
+				'weighted_f1_score': weighted_f1_score,
+				'std_weighted_f1_score': stds_weighted_f1_score,
+				"macro_f1_score": macro_f1_score,
+				"std_macro_f1_score": stds_macro_f1_score,
+				'done': True
+			})
+
+		config = {
+			"C": tune.loguniform(1e-3, 1e3),
+			"kernel": tune.choice(['rbf', 'linear', 'poly', 'sigmoid']),
+			"gamma": tune.choice(['scale', 'auto']) if np.random.rand() > 0.5 else tune.loguniform(1e-4, 1e1),
+			"degree": tune.randint(2, 5),
+			"coef0": tune.uniform(0.0, 1.0),
+		}
+
+		tuner = tune.Tuner(
+			model_training,
+			tune_config=tune.TuneConfig(
+				num_samples=tuning_rounds,
+				search_alg=OptunaSearch(),
+				scheduler=ASHAScheduler(),
+				metric="weighted_f1_score",
+				mode="max"
+			),
+			param_space=config
+		)
+
+		results = tuner.fit()
+
+		best_result = results.get_best_result(
+			metric="weighted_f1_score", mode="max")
+		# Get a dataframe for the last reported results of all of the trials
+		df = results.get_dataframe()
+
+		for item in best_result.metrics.keys():
+			print(f"{item} : {best_result.metrics[item]}")
+		print(f"The corresponding config is {best_result.config}")
+
+		data_dir = os.path.join(current_dir, f"{output}.csv")
+		df.to_csv(data_dir, index=False)
+		print(f"Training log saved at: {data_dir}")
+
+		# Train final model with best config
+		best_config = best_result.config
+		best_model = Pipeline([
+			('scaler', StandardScaler()),
+			('svc', SVC(
+				C=best_config['C'],
+				kernel=best_config['kernel'],
+				gamma=best_config['gamma'],
+				degree=best_config.get('degree', 3),
+				coef0=best_config.get('coef0', 0.0),
+				probability=True,
+				class_weight='balanced',
+				random_state=42
+			))
+		])
+		best_model.fit(X_train, y_train)
+		
+		y_pred = best_model.predict(X_test)
+		accuracy = accuracy_score(y_test, y_pred)
+		weighted_f1score = f1_score(y_test, y_pred, average='weighted')
+		macro_f1score = f1_score(y_test, y_pred, average='macro')
+		print(f"Tuned Model Metrics:")
+		print(f"Accuracy: {accuracy}")
+		print(f"Weighted F1 score: {weighted_f1score}")
+		print(f"Macro F1 score: {macro_f1score}")
+
+	if no_weights:
+		print("Model weights not saved")
+	else:
+		try:
+			os.makedirs(os.path.dirname(weights_path), exist_ok=True)
+			joblib.dump(best_model, weights_path)
+			print(f"Updated SVM model saved at: {weights_path}")
+		except Exception as e:
+			print(f"Failed to save model weights: {e}")
+
+
+if __name__ == "__main__":
+	train_svm()
