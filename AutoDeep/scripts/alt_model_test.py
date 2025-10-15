@@ -181,7 +181,11 @@ def train_svm(no_db_data, tuning_rounds, output, targets_path, no_weights, hyper
 				
 				# Add kernel-specific parameters
 				if kernel in ['rbf', 'poly', 'sigmoid']:
-					svc_params['gamma'] = config.get('gamma', 'scale')
+					# Determine gamma value based on gamma_type
+					if config['gamma_type'] == 'numeric':
+						svc_params['gamma'] = config['gamma_value']
+					else:
+						svc_params['gamma'] = config['gamma_type']  # 'scale' or 'auto'
 				if kernel == 'poly':
 					svc_params['degree'] = config.get('degree', 3)
 				if kernel in ['poly', 'sigmoid']:
@@ -229,8 +233,9 @@ def train_svm(no_db_data, tuning_rounds, output, targets_path, no_weights, hyper
 			"kernel": tune.choice(['rbf', 'linear', 'poly', 'sigmoid']),
 			
 			# Kernel-specific parameters
-			# gamma only for rbf, poly, sigmoid (will be ignored for linear)
-			"gamma": tune.choice(['scale', 'auto', tune.loguniform(1e-4, 1e1)]),
+			# gamma: can be 'scale', 'auto', or a float value
+			"gamma_type": tune.choice(['scale', 'auto', 'numeric']),
+			"gamma_value": tune.loguniform(1e-4, 1e1),  # Only used when gamma_type='numeric'
 			# degree only for poly (will be ignored for others)
 			"degree": tune.randint(2, 5),
 			# coef0 only for poly and sigmoid (will be ignored for others)
@@ -287,7 +292,11 @@ def train_svm(no_db_data, tuning_rounds, output, targets_path, no_weights, hyper
 		
 		# Add kernel-specific parameters
 		if kernel in ['rbf', 'poly', 'sigmoid']:
-			svc_params['gamma'] = best_config.get('gamma', 'scale')
+			# Determine gamma value based on gamma_type
+			if best_config['gamma_type'] == 'numeric':
+				svc_params['gamma'] = best_config['gamma_value']
+			else:
+				svc_params['gamma'] = best_config['gamma_type']  # 'scale' or 'auto'
 		if kernel == 'poly':
 			svc_params['degree'] = best_config.get('degree', 3)
 		if kernel in ['poly', 'sigmoid']:
