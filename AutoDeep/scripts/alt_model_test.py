@@ -32,6 +32,7 @@ def train_svm(no_db_data, tuning_rounds, output, targets_path, no_weights, hyper
 	from sklearn.metrics import accuracy_score, f1_score
 	from sklearn.svm import SVC
 	from sklearn.preprocessing import StandardScaler
+	from sklearn.impute import SimpleImputer
 	from sklearn.pipeline import Pipeline
 	from sklearn.utils import class_weight
 	import joblib
@@ -116,6 +117,7 @@ def train_svm(no_db_data, tuning_rounds, output, targets_path, no_weights, hyper
 
 	print("Starting training (Naive SVM)")
 	base_pipeline = Pipeline([
+		('imputer', SimpleImputer(strategy='mean')),  # Handle NaN values
 		('scaler', StandardScaler()),
 		('svc', SVC(probability=True, class_weight='balanced', random_state=42))
 	])
@@ -135,6 +137,7 @@ def train_svm(no_db_data, tuning_rounds, output, targets_path, no_weights, hyper
 		# Map config keys to the 'svc' step in the pipeline
 		svc_config = {f'svc__{k}': v for k, v in config.items()}
 		svc = Pipeline([
+			('imputer', SimpleImputer(strategy='mean')),  # Handle NaN values
 			('scaler', StandardScaler()),
 			('svc', SVC(probability=True, class_weight='balanced', random_state=42, **{k: v for k, v in config.items() if k in SVC().get_params()}))
 		])
@@ -164,6 +167,7 @@ def train_svm(no_db_data, tuning_rounds, output, targets_path, no_weights, hyper
 				
 				# Build pipeline with config
 				pipeline = Pipeline([
+					('imputer', SimpleImputer(strategy='mean')),  # Handle NaN values
 					('scaler', StandardScaler()),
 					('svc', SVC(
 						C=config['C'],
@@ -243,6 +247,7 @@ def train_svm(no_db_data, tuning_rounds, output, targets_path, no_weights, hyper
 		# Train final model with best config
 		best_config = best_result.config
 		best_model = Pipeline([
+			('imputer', SimpleImputer(strategy='mean')),  # Handle NaN values
 			('scaler', StandardScaler()),
 			('svc', SVC(
 				C=best_config['C'],
