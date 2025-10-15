@@ -165,20 +165,33 @@ def train_svm(no_db_data, tuning_rounds, output, targets_path, no_weights, hyper
 			for i in range(10):
 				X_train_cv, X_test_cv, y_train_cv, y_test_cv = train_test_split(X, targets, test_size=0.2, stratify=targets)
 				
+				# Build SVC with kernel-specific parameters
+				kernel = config['kernel']
+				svc_params = {
+					'C': config['C'],
+					'kernel': kernel,
+					'probability': True,
+					'class_weight': 'balanced',
+					'random_state': 42,
+					'shrinking': config['shrinking'],
+					'tol': config['tol'],
+					'cache_size': config['cache_size'],
+					'max_iter': config['max_iter'],
+				}
+				
+				# Add kernel-specific parameters
+				if kernel in ['rbf', 'poly', 'sigmoid']:
+					svc_params['gamma'] = config.get('gamma', 'scale')
+				if kernel == 'poly':
+					svc_params['degree'] = config.get('degree', 3)
+				if kernel in ['poly', 'sigmoid']:
+					svc_params['coef0'] = config.get('coef0', 0.0)
+				
 				# Build pipeline with config
 				pipeline = Pipeline([
 					('imputer', SimpleImputer(strategy='mean')),  # Handle NaN values
 					('scaler', StandardScaler()),
-					('svc', SVC(
-						C=config['C'],
-						kernel=config['kernel'],
-						gamma=config['gamma'],
-						degree=config.get('degree', 3),
-						coef0=config.get('coef0', 0.0),
-						probability=True,
-						class_weight='balanced',
-						random_state=42
-					))
+					('svc', SVC(**svc_params))
 				])
 				
 				pipeline.fit(X_train_cv, y_train_cv)
@@ -209,12 +222,25 @@ def train_svm(no_db_data, tuning_rounds, output, targets_path, no_weights, hyper
 				'done': True
 			})
 
+		# Conditional search space based on kernel type
 		config = {
+			# Core hyperparameters
 			"C": tune.loguniform(1e-3, 1e3),
 			"kernel": tune.choice(['rbf', 'linear', 'poly', 'sigmoid']),
-			"gamma": tune.choice(['scale', 'auto']) if np.random.rand() > 0.5 else tune.loguniform(1e-4, 1e1),
+			
+			# Kernel-specific parameters
+			# gamma only for rbf, poly, sigmoid (will be ignored for linear)
+			"gamma": tune.choice(['scale', 'auto', tune.loguniform(1e-4, 1e1)]),
+			# degree only for poly (will be ignored for others)
 			"degree": tune.randint(2, 5),
+			# coef0 only for poly and sigmoid (will be ignored for others)
 			"coef0": tune.uniform(0.0, 1.0),
+			
+			# Optimization hyperparameters
+			"shrinking": tune.choice([True, False]),  # Whether to use shrinking heuristic
+			"tol": tune.loguniform(1e-5, 1e-2),  # Tolerance for stopping criterion
+			"cache_size": tune.choice([200, 500, 1000, 2000]),  # Kernel cache size in MB
+			"max_iter": tune.choice([1000, 5000, 10000, -1]),  # Max iterations (-1 = no limit)
 		}
 
 		tuner = tune.Tuner(
@@ -246,19 +272,31 @@ def train_svm(no_db_data, tuning_rounds, output, targets_path, no_weights, hyper
 
 		# Train final model with best config
 		best_config = best_result.config
+		kernel = best_config['kernel']
+		svc_params = {
+			'C': best_config['C'],
+			'kernel': kernel,
+			'probability': True,
+			'class_weight': 'balanced',
+			'random_state': 42,
+			'shrinking': best_config['shrinking'],
+			'tol': best_config['tol'],
+			'cache_size': best_config['cache_size'],
+			'max_iter': best_config['max_iter'],
+		}
+		
+		# Add kernel-specific parameters
+		if kernel in ['rbf', 'poly', 'sigmoid']:
+			svc_params['gamma'] = best_config.get('gamma', 'scale')
+		if kernel == 'poly':
+			svc_params['degree'] = best_config.get('degree', 3)
+		if kernel in ['poly', 'sigmoid']:
+			svc_params['coef0'] = best_config.get('coef0', 0.0)
+		
 		best_model = Pipeline([
 			('imputer', SimpleImputer(strategy='mean')),  # Handle NaN values
 			('scaler', StandardScaler()),
-			('svc', SVC(
-				C=best_config['C'],
-				kernel=best_config['kernel'],
-				gamma=best_config['gamma'],
-				degree=best_config.get('degree', 3),
-				coef0=best_config.get('coef0', 0.0),
-				probability=True,
-				class_weight='balanced',
-				random_state=42
-			))
+			('svc', SVC(**svc_params))
 		])
 		best_model.fit(X_train, y_train)
 		
