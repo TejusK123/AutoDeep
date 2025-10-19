@@ -7,13 +7,14 @@ class CustomUsageMsg(click.Command):
 
 
 @click.command(cls=CustomUsageMsg)
+@click.option("--model", "-m", default="svm", type=click.Choice(["svm", "knn", "mlp"]), help="Model type: svm, knn, or mlp (neural network)")
 @click.option("--targets_path", "-t", help="Path to targets file", metavar="<str>", type=click.Path(exists=True, dir_okay=False))
 @click.option("--no_db_data", "-n", is_flag=True, help="Flag that omits original dataset from training")
 @click.option("--tuning_rounds", "-r", default=10, help="Number of tuning rounds: Default <10>", metavar="<int>")
-@click.option("--output", "-o", default="svm_training_log", help="Name of output training_log file", metavar="<str>")
+@click.option("--output", "-o", default="model_training_log", help="Name of output training_log file", metavar="<str>")
 @click.option("--no_weights", "-nw", is_flag=True, help="Flag that omits saving the model weights (recommended for testing)")
 @click.option("--hyperparameters", "-hp", help="Path to hyperparameter configuration file in case of manual tuning", metavar="<str>", type=click.Path(exists=True, dir_okay=False))
-def train_svm(no_db_data, tuning_rounds, output, targets_path, no_weights, hyperparameters):
+def train_model(model, no_db_data, tuning_rounds, output, targets_path, no_weights, hyperparameters):
 	"""Trains an SVM model using the same data layout as the other training scripts.
 
 	Behavior mirrors `boosted_forest_training.py`:
@@ -31,6 +32,8 @@ def train_svm(no_db_data, tuning_rounds, output, targets_path, no_weights, hyper
 	from sklearn.model_selection import train_test_split
 	from sklearn.metrics import accuracy_score, f1_score
 	from sklearn.svm import SVC
+	from sklearn.neighbors import KNeighborsClassifier
+	from sklearn.neural_network import MLPClassifier
 	from sklearn.preprocessing import StandardScaler
 	from sklearn.impute import SimpleImputer
 	from sklearn.pipeline import Pipeline
@@ -39,7 +42,7 @@ def train_svm(no_db_data, tuning_rounds, output, targets_path, no_weights, hyper
 
 	# Loading all relevant paths
 	base_path = os.path.split(os.path.dirname(os.path.realpath(__file__)))[0]
-	weights_path = os.path.join(base_path, "model_weights/svm_model.pkl")
+	weights_path = os.path.join(base_path, f"model_weights/{model}_model.pkl")
 	data_path = os.path.join(base_path, "training_data")
 	current_dir = os.getcwd()
 
@@ -115,34 +118,59 @@ def train_svm(no_db_data, tuning_rounds, output, targets_path, no_weights, hyper
 	# Train/test split
 	X_train, X_test, y_train, y_test = train_test_split(X, targets, test_size=0.2, stratify=targets if len(np.unique(targets))>1 else None)
 
-	print("Starting training (Naive SVM)")
-	base_pipeline = Pipeline([
-		('imputer', SimpleImputer(strategy='mean')),  # Handle NaN values
-		('scaler', StandardScaler()),
-		('svc', SVC(probability=True, class_weight='balanced', random_state=42))
-	])
+	if model == "svm":
+		print("Starting training (Naive SVM)")
+		base_pipeline = Pipeline([
+			('imputer', SimpleImputer(strategy='mean')),
+			('scaler', StandardScaler()),
+			('svc', SVC(probability=True, class_weight='balanced', random_state=42))
+		])
+	elif model == "knn":
+		print("Starting training (Naive KNN)")
+		base_pipeline = Pipeline([
+			('imputer', SimpleImputer(strategy='mean')),
+			('scaler', StandardScaler()),
+			('knn', KNeighborsClassifier())
+		])
+	elif model == "mlp":
+		print("Starting training (Naive Neural Network)")
+		base_pipeline = Pipeline([
+			('imputer', SimpleImputer(strategy='mean')),
+			('scaler', StandardScaler()),
+			('mlp', MLPClassifier(max_iter=200, random_state=42))
+		])
 
 	base_pipeline.fit(X_train, y_train)
 	y_pred = base_pipeline.predict(X_test)
 	accuracy = accuracy_score(y_test, y_pred)
-	print(f"naive SVM accuracy post-train {accuracy}")
+	print(f"naive {model.upper()} accuracy post-train {accuracy}")
 
 	# If manual hyperparameters provided, use them for SVC
 	if hyperparameters:
-		print("Using manual hyperparameters for SVC")
+		print(f"Using manual hyperparameters for {model.upper()}")
 		with open(hyperparameters, 'r') as f:
 			lines = list(filter(lambda x: len(x) != 0, (item.split() for item in f.readlines())))
-		# Expect lines like: param value
 		config = {item[0]: eval(item[-1]) for item in lines}
-		# Map config keys to the 'svc' step in the pipeline
-		svc_config = {f'svc__{k}': v for k, v in config.items()}
-		svc = Pipeline([
-			('imputer', SimpleImputer(strategy='mean')),  # Handle NaN values
-			('scaler', StandardScaler()),
-			('svc', SVC(probability=True, class_weight='balanced', random_state=42, **{k: v for k, v in config.items() if k in SVC().get_params()}))
-		])
-		svc.fit(X_train, y_train)
-		y_pred = svc.predict(X_test)
+		if model == "svm":
+			model_pipe = Pipeline([
+				('imputer', SimpleImputer(strategy='mean')),
+				('scaler', StandardScaler()),
+				('svc', SVC(probability=True, class_weight='balanced', random_state=42, **{k: v for k, v in config.items() if k in SVC().get_params()}))
+			])
+		elif model == "knn":
+			model_pipe = Pipeline([
+				('imputer', SimpleImputer(strategy='mean')),
+				('scaler', StandardScaler()),
+				('knn', KNeighborsClassifier(**{k: v for k, v in config.items() if k in KNeighborsClassifier().get_params()}))
+			])
+		elif model == "mlp":
+			model_pipe = Pipeline([
+				('imputer', SimpleImputer(strategy='mean')),
+				('scaler', StandardScaler()),
+				('mlp', MLPClassifier(max_iter=200, random_state=42, **{k: v for k, v in config.items() if k in MLPClassifier().get_params()}))
+			])
+		model_pipe.fit(X_train, y_train)
+		y_pred = model_pipe.predict(X_test)
 		accuracy = accuracy_score(y_test, y_pred)
 		weighted_f1score = f1_score(y_test, y_pred, average='weighted')
 		macro_f1score = f1_score(y_test, y_pred, average='macro')
@@ -150,9 +178,8 @@ def train_svm(no_db_data, tuning_rounds, output, targets_path, no_weights, hyper
 		print(f"Accuracy: {accuracy}")
 		print(f"Weighted F1 score: {weighted_f1score}")
 		print(f"Macro F1 score: {macro_f1score}")
-		best_model = svc
+		best_model = model_pipe
 	else:
-		# Ray Tune hyperparameter tuning (matching boosted_forest_training.py)
 		print("Starting hyperparameter tuning")
 		from ray import tune, train
 		from ray.tune.search.optuna import OptunaSearch
@@ -164,47 +191,69 @@ def train_svm(no_db_data, tuning_rounds, output, targets_path, no_weights, hyper
 			macro_f1_scores = []
 			for i in range(10):
 				X_train_cv, X_test_cv, y_train_cv, y_test_cv = train_test_split(X, targets, test_size=0.2, stratify=targets)
-				
-				# Build SVC with kernel-specific parameters
-				kernel = config['kernel']
-				svc_params = {
-					'C': config['C'],
-					'kernel': kernel,
-					'probability': True,
-					'class_weight': 'balanced',
-					'random_state': 42,
-					'shrinking': config['shrinking'],
-					'tol': config['tol'],
-					'cache_size': config['cache_size'],
-					'max_iter': config['max_iter'],
-				}
-				
-				# Add kernel-specific parameters
-				if kernel in ['rbf', 'poly', 'sigmoid']:
-					# Determine gamma value based on gamma_type
-					if config['gamma_type'] == 'numeric':
-						svc_params['gamma'] = config['gamma_value']
-					else:
-						svc_params['gamma'] = config['gamma_type']  # 'scale' or 'auto'
-				if kernel == 'poly':
-					svc_params['degree'] = config.get('degree', 3)
-				if kernel in ['poly', 'sigmoid']:
-					svc_params['coef0'] = config.get('coef0', 0.0)
-				
-				# Build pipeline with config
-				pipeline = Pipeline([
-					('imputer', SimpleImputer(strategy='mean')),  # Handle NaN values
-					('scaler', StandardScaler()),
-					('svc', SVC(**svc_params))
-				])
-				
+
+				if model == "svm":
+					kernel = config['kernel']
+					svc_params = {
+						'C': config['C'],
+						'kernel': kernel,
+						'probability': True,
+						'class_weight': 'balanced',
+						'random_state': 42,
+						'shrinking': config['shrinking'],
+						'tol': config['tol'],
+						'cache_size': config['cache_size'],
+						'max_iter': config['max_iter'],
+					}
+					if kernel in ['rbf', 'poly', 'sigmoid']:
+						if config['gamma_type'] == 'numeric':
+							svc_params['gamma'] = config['gamma_value']
+						else:
+							svc_params['gamma'] = config['gamma_type']
+					if kernel == 'poly':
+						svc_params['degree'] = config.get('degree', 3)
+					if kernel in ['poly', 'sigmoid']:
+						svc_params['coef0'] = config.get('coef0', 0.0)
+					pipeline = Pipeline([
+						('imputer', SimpleImputer(strategy='mean')),
+						('scaler', StandardScaler()),
+						('svc', SVC(**svc_params))
+					])
+				elif model == "knn":
+					knn_params = {
+						'n_neighbors': config['n_neighbors'],
+						'weights': config['weights'],
+						'p': config['p'],
+						'algorithm': config['algorithm'],
+					}
+					pipeline = Pipeline([
+						('imputer', SimpleImputer(strategy='mean')),
+						('scaler', StandardScaler()),
+						('knn', KNeighborsClassifier(**knn_params))
+					])
+				elif model == "mlp":
+					hls = tuple([config['hidden_layer_sizes']] * config['num_hidden_layers'])
+					mlp_params = {
+						'hidden_layer_sizes': hls,
+						'activation': config['activation'],
+						'alpha': config['alpha'],
+						'learning_rate_init': config['learning_rate_init'],
+						'solver': config['solver'],
+						'batch_size': config['batch_size'],
+						'max_iter': config['max_iter'],
+						'random_state': 42
+					}
+					pipeline = Pipeline([
+						('imputer', SimpleImputer(strategy='mean')),
+						('scaler', StandardScaler()),
+						('mlp', MLPClassifier(**mlp_params))
+					])
+
 				pipeline.fit(X_train_cv, y_train_cv)
 				y_pred_cv = pipeline.predict(X_test_cv)
-				
 				accuracy = accuracy_score(y_test_cv, y_pred_cv)
 				weighted_f1score = f1_score(y_test_cv, y_pred_cv, average='weighted')
 				macro_f1score = f1_score(y_test_cv, y_pred_cv, average='macro')
-				
 				accuracies.append(accuracy)
 				macro_f1_scores.append(macro_f1score)
 				weighted_f1_scores.append(weighted_f1score)
@@ -215,7 +264,6 @@ def train_svm(no_db_data, tuning_rounds, output, targets_path, no_weights, hyper
 			stds_weighted_f1_score = np.std(weighted_f1_scores)
 			macro_f1_score = np.mean(macro_f1_scores)
 			stds_macro_f1_score = np.std(macro_f1_scores)
-			
 			train.report({
 				'mean_accuracy': accuracy,
 				"std_accuracy": stds_acc,
@@ -226,27 +274,125 @@ def train_svm(no_db_data, tuning_rounds, output, targets_path, no_weights, hyper
 				'done': True
 			})
 
-		# Conditional search space based on kernel type
-		config = {
-			# Core hyperparameters
-			"C": tune.loguniform(1e-3, 1e3),
-			"kernel": tune.choice(['rbf', 'linear', 'poly', 'sigmoid']),
-			
-			# Kernel-specific parameters
-			# gamma: can be 'scale', 'auto', or a float value
-			"gamma_type": tune.choice(['scale', 'auto', 'numeric']),
-			"gamma_value": tune.loguniform(1e-4, 1e1),  # Only used when gamma_type='numeric'
-			# degree only for poly (will be ignored for others)
-			"degree": tune.randint(2, 5),
-			# coef0 only for poly and sigmoid (will be ignored for others)
-			"coef0": tune.uniform(0.0, 1.0),
-			
-			# Optimization hyperparameters
-			"shrinking": tune.choice([True, False]),  # Whether to use shrinking heuristic
-			"tol": tune.loguniform(1e-5, 1e-2),  # Tolerance for stopping criterion
-			"cache_size": tune.choice([200, 500, 1000, 2000]),  # Kernel cache size in MB
-			"max_iter": tune.choice([1000, 5000, 10000, -1]),  # Max iterations (-1 = no limit)
-		}
+		# Define search spaces for each model
+		if model == "svm":
+			search_space = {
+				"C": tune.loguniform(1e-3, 1e3),
+				"kernel": tune.choice(['rbf', 'linear', 'poly', 'sigmoid']),
+				"gamma_type": tune.choice(['scale', 'auto', 'numeric']),
+				"gamma_value": tune.loguniform(1e-4, 1e1),
+				"degree": tune.randint(2, 5),
+				"coef0": tune.uniform(0.0, 1.0),
+				"shrinking": tune.choice([True, False]),
+				"tol": tune.loguniform(1e-5, 1e-2),
+				"cache_size": tune.choice([200, 500, 1000, 2000]),
+				"max_iter": tune.choice([1000, 5000, 10000, -1]),
+			}
+		elif model == "knn":
+			search_space = {
+				"n_neighbors": tune.randint(1, 31),
+				"weights": tune.choice(["uniform", "distance"]),
+				"p": tune.choice([1, 2]),
+				"algorithm": tune.choice(["auto", "ball_tree", "kd_tree", "brute"]),
+			}
+		elif model == "mlp":
+			search_space = {
+				"hidden_layer_sizes": tune.randint(32, 257),
+				"num_hidden_layers": tune.randint(1, 4),
+				"activation": tune.choice(["relu", "tanh", "logistic"]),
+				"alpha": tune.loguniform(1e-6, 1e-2),
+				"learning_rate_init": tune.loguniform(1e-4, 1e-1),
+				"solver": tune.choice(["adam", "sgd", "lbfgs"]),
+				"batch_size": tune.choice([32, 64, 128]),
+				"max_iter": tune.choice([200, 400, 800]),
+			}
+
+		# ...existing Ray Tune tuner code...
+		tuner = tune.Tuner(
+			model_training,
+			tune_config=tune.TuneConfig(
+				num_samples=tuning_rounds,
+				search_alg=OptunaSearch(),
+				scheduler=ASHAScheduler(),
+				metric="weighted_f1_score",
+				mode="max"
+			),
+			param_space=search_space
+		)
+
+		results = tuner.fit()
+
+		best_result = results.get_best_result(
+			metric="weighted_f1_score", mode="max")
+		# Get a dataframe for the last reported results of all of the trials
+		df = results.get_dataframe()
+
+		for item in best_result.metrics.keys():
+			print(f"{item} : {best_result.metrics[item]}")
+		print(f"The corresponding config is {best_result.config}")
+
+		data_dir = os.path.join(current_dir, f"{output}.csv")
+		df.to_csv(data_dir, index=False)
+		print(f"Training log saved at: {data_dir}")
+
+		# Train final model with best config
+		best_config = best_result.config
+		if model == "svm":
+			kernel = best_config['kernel']
+			svc_params = {
+				'C': best_config['C'],
+				'kernel': kernel,
+				'probability': True,
+				'class_weight': 'balanced',
+				'random_state': 42,
+				'shrinking': best_config['shrinking'],
+				'tol': best_config['tol'],
+				'cache_size': best_config['cache_size'],
+				'max_iter': best_config['max_iter'],
+			}
+			if kernel in ['rbf', 'poly', 'sigmoid']:
+				if best_config['gamma_type'] == 'numeric':
+					svc_params['gamma'] = best_config['gamma_value']
+				else:
+					svc_params['gamma'] = best_config['gamma_type']
+			if kernel == 'poly':
+				svc_params['degree'] = best_config.get('degree', 3)
+			if kernel in ['poly', 'sigmoid']:
+				svc_params['coef0'] = best_config.get('coef0', 0.0)
+			best_model = Pipeline([
+				('imputer', SimpleImputer(strategy='mean')),
+				('scaler', StandardScaler()),
+				('svc', SVC(**svc_params))
+			])
+		elif model == "knn":
+			knn_params = {
+				'n_neighbors': best_config['n_neighbors'],
+				'weights': best_config['weights'],
+				'p': best_config['p'],
+				'algorithm': best_config['algorithm'],
+			}
+			best_model = Pipeline([
+				('imputer', SimpleImputer(strategy='mean')),
+				('scaler', StandardScaler()),
+				('knn', KNeighborsClassifier(**knn_params))
+			])
+		elif model == "mlp":
+			hls = tuple([best_config['hidden_layer_sizes']] * best_config['num_hidden_layers'])
+			mlp_params = {
+				'hidden_layer_sizes': hls,
+				'activation': best_config['activation'],
+				'alpha': best_config['alpha'],
+				'learning_rate_init': best_config['learning_rate_init'],
+				'solver': best_config['solver'],
+				'batch_size': best_config['batch_size'],
+				'max_iter': best_config['max_iter'],
+				'random_state': 42
+			}
+			best_model = Pipeline([
+				('imputer', SimpleImputer(strategy='mean')),
+				('scaler', StandardScaler()),
+				('mlp', MLPClassifier(**mlp_params))
+			])
 
 		tuner = tune.Tuner(
 			model_training,
@@ -330,4 +476,4 @@ def train_svm(no_db_data, tuning_rounds, output, targets_path, no_weights, hyper
 
 
 if __name__ == "__main__":
-	train_svm()
+	train_model()
