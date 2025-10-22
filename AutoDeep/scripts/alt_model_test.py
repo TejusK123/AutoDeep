@@ -1,3 +1,14 @@
+def save_xgboost_model(model, path):
+    import json
+    model_json = model.save_model(path)
+
+
+def save_sklearn_model(model, path):
+    import joblib
+    joblib.dump(model, path)
+
+
+
 import click
 
 
@@ -42,7 +53,12 @@ def train_model(model, no_db_data, tuning_rounds, output, targets_path, no_weigh
 
 	# Loading all relevant paths
 	base_path = os.path.split(os.path.dirname(os.path.realpath(__file__)))[0]
-	weights_path = os.path.join(base_path, f"model_weights/{model}_model.pkl")
+	if model == 'xgboost':
+		weights_path = os.path.join(base_path, f"model_weights/miRNA_model.pkl")
+	else:
+		weights_path = os.path.join(base_path, f"model_weights/{model}_model.pkl")
+
+
 	data_path = os.path.join(base_path, "training_data")
 	current_dir = os.getcwd()
 
@@ -469,10 +485,19 @@ def train_model(model, no_db_data, tuning_rounds, output, targets_path, no_weigh
 	else:
 		try:
 			os.makedirs(os.path.dirname(weights_path), exist_ok=True)
-			joblib.dump(best_model, weights_path)
+			# Save model weights
+			if model == 'xgboost':
+				save_xgboost_model(model, weights_path.replace('.pkl', '.json'))
+				best_model = XGBClassifier(**best_config)
+				best_model.fit(X_train, y_train)
+				best_model.save_model(weights_path.replace('.pkl', '.json'))
+			else:
+				save_sklearn_model(model, weights_path)
 			print(f"Updated SVM model saved at: {weights_path}")
 		except Exception as e:
 			print(f"Failed to save model weights: {e}")
+
+
 
 
 if __name__ == "__main__":
