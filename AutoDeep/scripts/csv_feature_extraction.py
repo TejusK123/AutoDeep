@@ -6,18 +6,21 @@ current_dir = os.getcwd()
 data_dir = os.path.join(current_dir, "AutoDeepRun/formatted_novel_miRNA.csv")
 
 data = pd.read_csv(data_dir)
+
+# Extracting sensitivity and uncertainty from the estimated_probability_miRNA_candidate_is_true_positive column
 try:
     data.insert(2, "mirDeep_sensitivity", data['estimated_probability_miRNA_candidate_is_true_positive'].apply(lambda x: float(x.split("+/-")[0])))
 except:
     data.insert(2, "mirDeep_sensitivity", data['estimated_probability_miRNA_candidate_is_true_positive'].apply(lambda x: None))
 
 try:
-
     data.insert(3, 'sensitivity_uncertainty', data['estimated_probability_miRNA_candidate_is_true_positive'].apply(lambda x: float(x.split("+/-")[1][:-1])))
 except:
     data.insert(3, 'sensitivity_uncertainty', data['estimated_probability_miRNA_candidate_is_true_positive'].apply(lambda x: None))
+
 data = data.drop(columns = ['estimated_probability_miRNA_candidate_is_true_positive'])
 
+# ----------------------------------------------------------------------------------------------------------
 
 
 data = data.drop(columns = ['rfam_alert'])
