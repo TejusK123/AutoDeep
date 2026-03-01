@@ -1,8 +1,8 @@
 
 import re
 import pandas as pd
-# import pypdf  # REMOVED: PyPDF dependency
-# from pypdf import PdfReader  # REMOVED: PyPDF dependency
+import pypdf  # REMOVED: PyPDF dependency
+from pypdf import PdfReader  # REMOVED: PyPDF dependency
 import numpy as np
 import sys
 import os
@@ -169,7 +169,7 @@ data2 = pd.read_csv(os.path.join(current_dir, "AutoDeepRun/feature_engineered_mi
 intersected_data = pd.merge(data, data2, on='provisional_id') #temporary intersection to make life easier
 
 
-'''
+
 #---------------------------------------------------------------------
 #Beginning of 5' processing inference
 
@@ -244,188 +244,187 @@ with warnings.catch_warnings():
 	signaling_df = pd.DataFrame({'provisional_id': loci, "five_prime_process_signal_selected_row_count_sum_over_mature_count_sum" : five_prime_process_signal_selected_row_count_sum_over_mature_count_sum,  'num_locis' : num_locis})
 	intersected_data = pd.merge(signaling_df, intersected_data, on='provisional_id')
 
-'''
-#---------------------------------------------------------------------
-# Beginning of 5' processing inference (NEW: using .mrd file instead of PDF)
+# #---------------------------------------------------------------------
+# # Beginning of 5' processing inference (NEW: using .mrd file instead of PDF)
 
-# OLD PDF-BASED IMPLEMENTATION (COMMENTED OUT) - Removed to eliminate PyPDF dependency
-# See no_pdf.ipynb for the original implementation details
+# # OLD PDF-BASED IMPLEMENTATION (COMMENTED OUT) - Removed to eliminate PyPDF dependency
+# # See no_pdf.ipynb for the original implementation details
 
-def parse_mrd_file(mrd_filepath):
-	"""
-	Parse a .mrd file and extract alignment entries with their counts.
-	Returns a list of entries.
-	"""
-	with open(mrd_filepath) as f:
-		read_data = f.read().splitlines()
+# def parse_mrd_file(mrd_filepath):
+# 	"""
+# 	Parse a .mrd file and extract alignment entries with their counts.
+# 	Returns a list of entries.
+# 	"""
+# 	with open(mrd_filepath) as f:
+# 		read_data = f.read().splitlines()
 	
-	entries = []
-	temp = []
+# 	entries = []
+# 	temp = []
 	
-	for item in read_data:
-		if item.startswith('>'):
-			if temp:
-				entries.append(temp)
-			temp = [item]
-		else:
-			if not item == '':
-				temp.append(item)
+# 	for item in read_data:
+# 		if item.startswith('>'):
+# 			if temp:
+# 				entries.append(temp)
+# 			temp = [item]
+# 		else:
+# 			if not item == '':
+# 				temp.append(item)
 	
-	if temp:
-		entries.append(temp)
+# 	if temp:
+# 		entries.append(temp)
 	
-	return entries
+# 	return entries
 
-def extract_alignments_from_entry(entry):
-	"""
-	Extract alignment lines (seq_*, obs, exp) from an entry.
-	"""
-	alignments = [item.strip() for item in entry if (item.startswith('seq_') or item.startswith('obs') or item.startswith('exp'))]
-	return alignments
+# def extract_alignments_from_entry(entry):
+# 	"""
+# 	Extract alignment lines (seq_*, obs, exp) from an entry.
+# 	"""
+# 	alignments = [item.strip() for item in entry if (item.startswith('seq_') or item.startswith('obs') or item.startswith('exp'))]
+# 	return alignments
 
-def parse_seq_entry(seq_line):
-	"""
-	Parse a sequence entry line to extract sequence name, count, and alignment.
-	Handles formats like: seq_0_x10<tab>ALIGNMENT and obs/exp formats.
-	"""
-	s = seq_line.strip()
-	s = re.sub(r'\t.*$', '', s).strip()  # drop trailing tab/flag
-	s = s.strip('\'"')  # remove surrounding quotes
+# def parse_seq_entry(seq_line):
+# 	"""
+# 	Parse a sequence entry line to extract sequence name, count, and alignment.
+# 	Handles formats like: seq_0_x10<tab>ALIGNMENT and obs/exp formats.
+# 	"""
+# 	s = seq_line.strip()
+# 	s = re.sub(r'\t.*$', '', s).strip()  # drop trailing tab/flag
+# 	s = s.strip('\'"')  # remove surrounding quotes
 	
-	m = re.match(r'^(seq_[0-9]+)_x(\d+)\s+(.*)$', s)
-	consensus = re.match(r'(exp|obs)\s(.+)$', s)
+# 	m = re.match(r'^(seq_[0-9]+)_x(\d+)\s+(.*)$', s)
+# 	consensus = re.match(r'(exp|obs)\s(.+)$', s)
 	
-	if consensus:
-		return 'consensus', 1, consensus.group(2).strip()
-	if m:
-		return m.group(1), int(m.group(2)), m.group(3).strip()
+# 	if consensus:
+# 		return 'consensus', 1, consensus.group(2).strip()
+# 	if m:
+# 		return m.group(1), int(m.group(2)), m.group(3).strip()
 	
-	# fallback
-	parts = s.split(None, 1)
-	if parts:
-		m2 = re.match(r'^(seq_[0-9]+)_x(\d+)$', parts[0])
-		if m2:
-			alignment = parts[1].strip() if len(parts) > 1 else ''
-			return m2.group(1), int(m2.group(2)), alignment
+# 	# fallback
+# 	parts = s.split(None, 1)
+# 	if parts:
+# 		m2 = re.match(r'^(seq_[0-9]+)_x(\d+)$', parts[0])
+# 		if m2:
+# 			alignment = parts[1].strip() if len(parts) > 1 else ''
+# 			return m2.group(1), int(m2.group(2)), alignment
 	
-	return None, None, s
+# 	return None, None, s
 
-def build_dataframes_from_entries(entries_alignments):
-	"""
-	Build dataframes from alignment entries, dropping 'exp' consensus if 'obs' exists.
-	"""
-	dfs = []
-	for idx, entry in enumerate(entries_alignments):
-		has_obs = any(line.strip().startswith('obs') for line in entry)
-		rows = []
-		for line in entry:
-			if has_obs and line.strip().startswith('exp'):
-				continue  # skip exp if obs exists
-			name, count, aln = parse_seq_entry(line)
-			if name is not None:
-				rows.append((name, count, aln))
+# def build_dataframes_from_entries(entries_alignments):
+# 	"""
+# 	Build dataframes from alignment entries, dropping 'exp' consensus if 'obs' exists.
+# 	"""
+# 	dfs = []
+# 	for idx, entry in enumerate(entries_alignments):
+# 		has_obs = any(line.strip().startswith('obs') for line in entry)
+# 		rows = []
+# 		for line in entry:
+# 			if has_obs and line.strip().startswith('exp'):
+# 				continue  # skip exp if obs exists
+# 			name, count, aln = parse_seq_entry(line)
+# 			if name is not None:
+# 				rows.append((name, count, aln))
 		
-		df = pd.DataFrame(rows, columns=['sequence_name', 'sequence_count', 'alignment'])
-		dfs.append(df)
+# 		df = pd.DataFrame(rows, columns=['sequence_name', 'sequence_count', 'alignment'])
+# 		dfs.append(df)
 	
-	return dfs
+# 	return dfs
 
-def extract_five_prime_metrics(df):
-	"""
-	Extract 5' start position metrics from a dataframe of alignments.
-	Returns homogeneity metrics based on 5' nucleotide position.
-	"""
-	five_prime_data = []
+# def extract_five_prime_metrics(df):
+# 	"""
+# 	Extract 5' start position metrics from a dataframe of alignments.
+# 	Returns homogeneity metrics based on 5' nucleotide position.
+# 	"""
+# 	five_prime_data = []
 	
-	# Skip consensus row (first row if it exists)
-	for i, row in df.iloc[1:].iterrows():
-		aln = row['alignment']
-		count = row['sequence_count']
+# 	# Skip consensus row (first row if it exists)
+# 	for i, row in df.iloc[1:].iterrows():
+# 		aln = row['alignment']
+# 		count = row['sequence_count']
 		
-		# Find first nucleotide (A, C, G, T, U, N - case insensitive)
-		nucleotide_pattern = r'[ACGTUNacgtun]'
-		match = re.search(nucleotide_pattern, aln)
+# 		# Find first nucleotide (A, C, G, T, U, N - case insensitive)
+# 		nucleotide_pattern = r'[ACGTUNacgtun]'
+# 		match = re.search(nucleotide_pattern, aln)
 		
-		if match:
-			idx = match.start()
-			nucleotide = match.group().upper()
-		else:
-			idx = -1
-			nucleotide = 'N'
+# 		if match:
+# 			idx = match.start()
+# 			nucleotide = match.group().upper()
+# 		else:
+# 			idx = -1
+# 			nucleotide = 'N'
 		
-		five_prime_data.append({
-			'five_prime_index': idx,
-			'five_prime_nucleotide': nucleotide,
-			'sequence_count': count
-		})
+# 		five_prime_data.append({
+# 			'five_prime_index': idx,
+# 			'five_prime_nucleotide': nucleotide,
+# 			'sequence_count': count
+# 		})
 	
-	return pd.DataFrame(five_prime_data)
+# 	return pd.DataFrame(five_prime_data)
 
-def calculate_homogeneity_score(five_prime_df):
-	"""
-	Calculate homogeneity metrics from 5' start position data.
-	Returns a dict with dominant_prop, entropy, gini, and n_distinct_positions.
-	"""
-	if five_prime_df.empty:
-		return None
+# def calculate_homogeneity_score(five_prime_df):
+# 	"""
+# 	Calculate homogeneity metrics from 5' start position data.
+# 	Returns a dict with dominant_prop, entropy, gini, and n_distinct_positions.
+# 	"""
+# 	if five_prime_df.empty:
+# 		return None
 	
-	counts = five_prime_df['sequence_count'].values
-	total = counts.sum()
-	proportions = counts / total
+# 	counts = five_prime_df['sequence_count'].values
+# 	total = counts.sum()
+# 	proportions = counts / total
 	
-	# Dominant proportion
-	max_prop = proportions.max()
+# 	# Dominant proportion
+# 	max_prop = proportions.max()
 	
-	# Normalized Shannon entropy
-	entropy = -np.sum(proportions * np.log2(proportions + 1e-10))
-	max_entropy = np.log2(len(proportions))
-	normalized_entropy = entropy / max_entropy if max_entropy > 0 else 0
+# 	# Normalized Shannon entropy
+# 	entropy = -np.sum(proportions * np.log2(proportions + 1e-10))
+# 	max_entropy = np.log2(len(proportions))
+# 	normalized_entropy = entropy / max_entropy if max_entropy > 0 else 0
 	
-	# Gini coefficient
-	sorted_counts = np.sort(counts)
-	n = len(sorted_counts)
-	gini = (2 * np.sum(np.arange(1, n+1) * sorted_counts)) / (n * sorted_counts.sum()) - (n + 1) / n
+# 	# Gini coefficient
+# 	sorted_counts = np.sort(counts)
+# 	n = len(sorted_counts)
+# 	gini = (2 * np.sum(np.arange(1, n+1) * sorted_counts)) / (n * sorted_counts.sum()) - (n + 1) / n
 	
-	# Number of distinct positions
-	n_distinct = len(five_prime_df)
+# 	# Number of distinct positions
+# 	n_distinct = len(five_prime_df)
 	
-	return {
-		'dominant_prop': max_prop,
-		'normalized_entropy': normalized_entropy,
-		'gini_coefficient': gini,
-		'n_distinct_positions': n_distinct,
-		'total_count': int(total)
-	}
+# 	return {
+# 		'dominant_prop': max_prop,
+# 		'normalized_entropy': normalized_entropy,
+# 		'gini_coefficient': gini,
+# 		'n_distinct_positions': n_distinct,
+# 		'total_count': int(total)
+# 	}
 
-print("Searching for 5\' processing in potential miRNAs using .mrd file")
+# print("Searching for 5\' processing in potential miRNAs using .mrd file")
 
-# PLACEHOLDER FILEPATH - UPDATE THIS TO YOUR .MRD FILE PATH
-mrd_filepath = "/path/to/your/mirdeep/output.mrd"
+# # PLACEHOLDER FILEPATH - UPDATE THIS TO YOUR .MRD FILE PATH
+# mrd_filepath = "/path/to/your/mirdeep/output.mrd"
 
-# Parse entries and build dataframes
-entries_alignments = parse_mrd_file(mrd_filepath)
-entries_alignments = [extract_alignments_from_entry(entry) for entry in entries_alignments]
-dfs = build_dataframes_from_entries(entries_alignments)
+# # Parse entries and build dataframes
+# entries_alignments = parse_mrd_file(mrd_filepath)
+# entries_alignments = [extract_alignments_from_entry(entry) for entry in entries_alignments]
+# dfs = build_dataframes_from_entries(entries_alignments)
 
-# Extract 5' metrics for each entry
-five_prime_metrics = []
-loci = list(intersected_data['provisional_id'])
+# # Extract 5' metrics for each entry
+# five_prime_metrics = []
+# loci = list(intersected_data['provisional_id'])
 
-for idx, locus_name in enumerate(tqdm(loci)):
-	# Assuming each locus corresponds to one entry in the dataframes
-	if idx < len(dfs):
-		df = dfs[idx]
-		five_prime_df = extract_five_prime_metrics(df)
-		metrics = calculate_homogeneity_score(five_prime_df)
-		if metrics:
-			metrics['provisional_id'] = locus_name
-			metrics['num_locis'] = len(five_prime_df)
-			five_prime_metrics.append(metrics)
+# for idx, locus_name in enumerate(tqdm(loci)):
+# 	# Assuming each locus corresponds to one entry in the dataframes
+# 	if idx < len(dfs):
+# 		df = dfs[idx]
+# 		five_prime_df = extract_five_prime_metrics(df)
+# 		metrics = calculate_homogeneity_score(five_prime_df)
+# 		if metrics:
+# 			metrics['provisional_id'] = locus_name
+# 			metrics['num_locis'] = len(five_prime_df)
+# 			five_prime_metrics.append(metrics)
 
-signaling_df = pd.DataFrame(five_prime_metrics)
+# signaling_df = pd.DataFrame(five_prime_metrics)
 
-intersected_data = pd.merge(signaling_df[['provisional_id', 'dominant_prop', 'normalized_entropy', 'gini_coefficient', 'num_locis']], 
-							   intersected_data, on='provisional_id', how='left')
+# intersected_data = pd.merge(signaling_df[['provisional_id', 'dominant_prop', 'normalized_entropy', 'gini_coefficient', 'num_locis']], 
+# 							   intersected_data, on='provisional_id', how='left')
 
 intersected_data.to_csv(os.path.join(current_dir, "AutoDeepRun/fully_formatted_data.csv"), index = False)
 

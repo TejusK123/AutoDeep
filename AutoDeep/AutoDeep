@@ -1,0 +1,11 @@
+#!/bin/bash
+
+# AutoDeep executable wrapper
+# This script serves as the main entry point for AutoDeep
+# Usage: AutoDeep <subcommand|directory> [options]
+
+# Get the directory where this script is located
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+
+# Call the main AutoDeep.sh script, passing all arguments
+exec bash "$SCRIPT_DIR/scripts/AutoDeep.sh" "$@"

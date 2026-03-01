@@ -1,8 +1,30 @@
 import os
 import sys
-from format_csv import format_csv
-from extract_images import extract_images
+import pandas as pd
 from datetime import datetime
+
+
+def format_csv(csv_path):
+    """Format mirDeep2 CSV file into structured miRNA data."""
+    current_dir = os.getcwd()
+    output_file = os.path.join(current_dir, "AutoDeepRun/formatted_novel_miRNA.csv")
+    data = pd.read_csv(csv_path)
+    start_index = data.iloc[:,0][data.iloc[:,0] == 'novel miRNAs predicted by miRDeep2'].index[0]
+    try:
+        end_index = data.iloc[:,0][data.iloc[:,0] == 'mature miRBase miRNAs detected by miRDeep2'].index[0]
+    except:
+        end_index = data.shape[0]
+    
+    novel_data = (data.iloc[start_index:end_index,0]).reset_index(drop=True)
+    novel_data = pd.DataFrame(novel_data)
+    novel_data.rename(columns=lambda x: novel_data.iloc[0,0], inplace=True)
+    novel_data = novel_data.iloc[2:,:]
+    novel_data = novel_data.iloc[:, -1].str.split('\t', expand=True)
+    novel_data.columns = ['provisional_id', 'miRDeep2_score', 'estimated_probability_miRNA_candidate_is_true_positive', 'rfam_alert','total_read_count','mature_read_count','loop_read_count','star_read_count','significant_randfold_p-value','miRBase_miRNA','example_miRBase_miRNA_with_same_seed','UCSC_browser','NCBI_blastn','consensus_mature_sequence','consensus_star_sequence','consensus_precursor_sequeunce','precursor_coordinate'][:novel_data.shape[1]]
+    novel_data.to_csv(output_file, index=False)
+
+
+
 def find_csv_files(directory):
     # Verify if the provided path is valid
     if not os.path.isdir(directory):
@@ -43,8 +65,6 @@ def find_csv_files(directory):
             f.write(content)
         format_csv(csv_file)	
         # e.g., load CSV with pandas or process data
-    for pdfdir in pdf_directories:
-        extract_images(pdfdir)
 # Main execution
 if __name__ == "__main__":
     if len(sys.argv) != 2:
