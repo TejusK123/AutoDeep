@@ -304,6 +304,9 @@ cmd_infer() {
         done < <(find "$current_dir/pdfs_"* -type f -print0 2>/dev/null || true)
     fi
     
+    #TODO: Do the same filename cleanup for .mrd file
+
+
     # Step 5: Extract features and run classification
     info "Step 5/5: Extracting features and running classification..."
     python "$SCRIPT_DIR/csv_feature_extraction.py" || error "Feature extraction failed"

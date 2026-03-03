@@ -366,7 +366,7 @@ def extract_five_prime_metrics(df):
 	
 	return pd.DataFrame(five_prime_data)
 
-def calculate_homogeneity_score(five_prime_df):
+def calculate_homogeneity_score(five_prime_df, miRNA_id=None):
 	"""
 	Calculate homogeneity metrics from 5' start position data.
 	Aggregates counts by position (not by individual sequences).
@@ -380,23 +380,25 @@ def calculate_homogeneity_score(five_prime_df):
 	- coefficient_variation: Relative spread of position counts
 	- total_count: Total reads aggregated
 	"""
+
 	if five_prime_df.empty:
 		return None
 	
 
-	maj_idx = five_prime_df.groupby('five_prime_index')['sequence_count'].sum().idxmax()
-	alignment_location = five_prime_df.loc[five_prime_df['five_prime_index'] == maj_idx, 'alignment_location'].iloc[0]
+
+	M_idx = five_prime_df.groupby('five_prime_index')['sequence_count'].sum().idxmax()
+	alignment_location = five_prime_df.loc[five_prime_df['five_prime_index'] == M_idx, 'alignment_location'].iloc[0]
 	if alignment_location == 'M' or alignment_location == 'S':
-		miRNA_size = five_prime_df.loc[five_prime_df['five_prime_index'] == maj_idx, 'mature_size'].iloc[0]
+		miRNA_size = five_prime_df.loc[five_prime_df['five_prime_index'] == M_idx, 'mature_size'].iloc[0]
 	else:
 		miRNA_size = 22
 
 	#print(f"miRNA size inferred from major position: {miRNA_size} (alignment location: {alignment_location})")
 	miRNA_size = 20
-	min_idx = max(0, maj_idx - miRNA_size)
-	max_idx = (maj_idx + miRNA_size) #Guarenteed to be within bounds because we're looking at 5' end.
+	min_idx = max(0, M_idx - miRNA_size)
+	max_idx = (M_idx + miRNA_size) #Guarenteed to be within bounds because we're looking at 5' end.
 	
-	#print(f"Major 5' start position: {maj_idx} (alignment location: {alignment_location}), min_idx: {min_idx}, max_idx: {max_idx}")
+	#print(f"Major 5' start position: {M_idx} (alignment location: {alignment_location}), min_idx: {min_idx}, max_idx: {max_idx}")
 
 	# AGGREGATION BY POSITION: Group sequences by 5' start position and sum counts
 	position_counts = five_prime_df[(five_prime_df['five_prime_index'] >= min_idx) & (five_prime_df['five_prime_index'] <= max_idx)].groupby('five_prime_index')['sequence_count'].sum().values
@@ -426,6 +428,81 @@ def calculate_homogeneity_score(five_prime_df):
 	# Metric 4: Coefficient of variation of position counts
 	cv = np.std(position_counts) / np.mean(position_counts) if np.mean(position_counts) > 0 else 0
 	
+	#STAR homogeneity (temporary fix variables later rn overriding them)
+
+
+	star_df = five_prime_df[~((five_prime_df['five_prime_index'] > M_idx - miRNA_size) & (five_prime_df['five_prime_index'] < M_idx + miRNA_size))]
+
+	if star_df.empty:
+		#print(f"Warning: No star reads found for miRNA {miRNA_id if miRNA_id else 'unknown'}. Skipping 5' homogeneity metrics for star strand.")
+		return {
+		'max_prop': max_prop,
+		'top1_prop': top1_prop,
+		'top2_prop': top2_prop,
+		'top3_prop': top3_prop,
+		'normalized_entropy': normalized_entropy,
+		'gini_coefficient': gini,
+		'n_distinct_positions': n_distinct_positions,
+		'coefficient_variation': cv,
+		'total_count': int(total),
+		'num_locis': num_locis,
+		'max_prop_s': np.nan,
+		'top1_prop_s': np.nan,
+		'top2_prop_s': np.nan,
+		'top3_prop_s': np.nan,
+		'normalized_entropy_s': np.nan,
+		'gini_coefficient_s': np.nan,
+		'coefficient_variation_s': np.nan,
+	}
+
+	S_idx = star_df.groupby('five_prime_index')['sequence_count'].sum().idxmax()
+	alignment_location = star_df.loc[star_df['five_prime_index'] == S_idx, 'alignment_location'].iloc[0]
+	if alignment_location == 'M' or alignment_location == 'S':
+		miRNA_size = star_df.loc[star_df['five_prime_index'] == S_idx, 'mature_size'].iloc[0]
+	else:
+		miRNA_size = 22
+
+	#print(f"miRNA size inferred from major position: {miRNA_size} (alignment location: {alignment_location})")
+	miRNA_size = 20
+	min_idx = max(0, S_idx - miRNA_size)
+	max_idx = (S_idx + miRNA_size) #Guarenteed to be within bounds because we're looking at 5' end.
+	
+	#print(f"Major 5' start position: {S_idx} (alignment location: {alignment_location}), min_idx: {min_idx}, max_idx: {max_idx}")
+
+	# AGGREGATION BY POSITION: Group sequences by 5' start position and sum counts
+	position_counts = star_df[(star_df['five_prime_index'] >= min_idx) & (star_df['five_prime_index'] <= max_idx)].groupby('five_prime_index')['sequence_count'].sum().values
+	total = position_counts.sum()
+	proportions = position_counts / total
+	num_locis = star_df.shape[0]
+	# Metric 1: Maximum proportion (reads at most abundant position within window)
+	max_prop_s = proportions.max()
+	
+	# Top N proportions (sorted by position count)
+	sorted_position_counts = np.sort(position_counts)[::-1]  # descending
+	top1_prop_s = sorted_position_counts[0] / total if len(sorted_position_counts) > 0 else 0
+	top2_prop_s = np.sum(sorted_position_counts[:min(2, len(sorted_position_counts))]) / total
+	top3_prop_s = np.sum(sorted_position_counts[:min(3, len(sorted_position_counts))]) / total
+	
+	# Metric 2: Normalized Shannon entropy (over aggregated position counts)
+	entropy = -np.sum(proportions * np.log2(proportions + 1e-10))
+	n_distinct_positions = len(position_counts)
+	max_entropy = np.log2(n_distinct_positions) if n_distinct_positions > 0 else 0
+	normalized_entropy_s = entropy / max_entropy if max_entropy > 0 else 0
+	
+	# Metric 3: Gini coefficient (0=uniform, 1=concentrated) over positions
+	sorted_counts = np.sort(position_counts)
+	n = len(sorted_counts)
+	gini_s = (2 * np.sum(np.arange(1, n+1) * sorted_counts)) / (n * sorted_counts.sum()) - (n + 1) / n
+	
+	# Metric 4: Coefficient of variation of position counts
+	cv_s = np.std(position_counts) / np.mean(position_counts) if np.mean(position_counts) > 0 else 0
+
+
+
+
+
+
+
 	return {
 		'max_prop': max_prop,
 		'top1_prop': top1_prop,
@@ -436,7 +513,14 @@ def calculate_homogeneity_score(five_prime_df):
 		'n_distinct_positions': n_distinct_positions,
 		'coefficient_variation': cv,
 		'total_count': int(total),
-		'num_locis': num_locis
+		'num_locis': num_locis,
+		'max_prop_s': max_prop_s,
+		'top1_prop_s': top1_prop_s,
+		'top2_prop_s': top2_prop_s,
+		'top3_prop_s': top3_prop_s,
+		'normalized_entropy_s': normalized_entropy_s,
+		'gini_coefficient_s': gini_s,
+		'coefficient_variation_s': cv_s,
 	}
 
 print("Searching for 5\' processing in potential miRNAs using .mrd file")
@@ -470,7 +554,7 @@ for df, miRNA_id in tqdm(dfs):
 	
 	# Calculate homogeneity score
 	if not five_prime_df.empty:
-		metrics = calculate_homogeneity_score(five_prime_df)
+		metrics = calculate_homogeneity_score(five_prime_df, miRNA_id)
 		if metrics:
 			metrics['provisional_id'] = miRNA_id if miRNA_id else 'unknown'
 			five_prime_metrics.append(metrics)
@@ -495,7 +579,7 @@ if five_prime_metrics:
 	# 	how='left'
 	# )
 	intersected_data = pd.merge(
-		signaling_df[['provisional_id','max_prop','n_distinct_positions']], 
+		signaling_df[['provisional_id','normalized_entropy','normalized_entropy_s']], 
 		intersected_data, 
 		on='provisional_id', 
 	)
