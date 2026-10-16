@@ -1,0 +1,68 @@
+n=2907; features=18 (direct 9, engineered 9); class counts {'Candidate': np.int64(1082), 'Confident': np.int64(1000), 'falsepositive': np.int64(825)}
+
+=== Protocol comparison (pooled metrics; nonhom = loci without a homologous seed) ===
+             protocol                 model                          acc  macroF1  balAcc  nonhom_acc  nonhom_macroF1  nonhom_rec_Conf  nonhom_prec_Conf
+     random 80/20 x10              majority                0.373 ± 0.000    0.181   0.333       0.497           0.221            0.000             0.000
+     random 80/20 x10       seed+score tree                0.600 ± 0.010    0.569   0.632       0.467           0.431            0.354             0.712
+     random 80/20 x10    logistic (18 feat)                0.791 ± 0.013    0.790   0.788       0.721           0.681            0.492             0.675
+     random 80/20 x10        XGB direct (9)                0.745 ± 0.011    0.742   0.743       0.659           0.664            0.637             0.742
+     random 80/20 x10          XGB all (18)                0.864 ± 0.010    0.864   0.863       0.819           0.789            0.644             0.773
+     random 80/20 x10 XGB no seed/sens (15)                0.810 ± 0.014    0.812   0.811       0.798           0.762            0.671             0.619
+leave-one-species-out              majority 0.238 (fold range 0.06-0.48)    0.177   0.219       0.309           0.240            0.665             0.167
+leave-one-species-out       seed+score tree 0.599 (fold range 0.41-0.81)    0.578   0.627       0.465           0.440            0.346             0.764
+leave-one-species-out    logistic (18 feat) 0.754 (fold range 0.59-0.88)    0.754   0.750       0.672           0.611            0.357             0.577
+leave-one-species-out        XGB direct (9) 0.664 (fold range 0.44-0.82)    0.666   0.663       0.552           0.549            0.430             0.745
+leave-one-species-out          XGB all (18) 0.813 (fold range 0.64-0.90)    0.814   0.811       0.750           0.688            0.397             0.730
+leave-one-species-out XGB no seed/sens (15) 0.677 (fold range 0.58-0.79)    0.680   0.678       0.685           0.647            0.665             0.374
+
+=== LOSO per-species, XGB all (18) ===
+        species   n   acc  macroF1  rec_Cand  rec_Conf  rec_FP  prec_Conf
+    A. thaliana 126 0.825    0.639     0.143     0.788   0.962      0.963
+      B. tabaci 325 0.840    0.829     0.750     0.972   0.841      0.963
+   C. pomonella 212 0.882    0.861     0.919     0.781   0.844      0.926
+D. melanogaster 327 0.875    0.831     0.707     1.000   0.793      0.944
+      E. andrei 714 0.640    0.611     0.683     0.360   0.764      0.783
+     H. sapiens 878 0.872    0.858     0.963     0.898   0.751      0.995
+  P. xylostella 180 0.883    0.870     0.964     0.895   0.700      0.895
+  S. frugiperda 145 0.897    0.881     0.778     1.000   0.897      0.939
+
+LOSO pooled confusion matrix (rows true Cand/Conf/FP; cols predicted):
+ [[876  33 173]
+ [134 836  30]
+ [168   7 650]]
+LOSO pooled confusion, non-homologous loci only:
+ [[876  33 173]
+ [134 108  30]
+ [168   7 650]]
+
+Species identifiable from 'mirDeep_sensitivity' + 'sensitivity_uncertainty' alone: 5-fold CV accuracy 0.991 (chance 0.302)
+
+Released model, mean |SHAP| (share of total):
+homologous_seed_in_miRBase                                                0.263
+consensus_precursor_sequence_length                                       0.096
+five_prime_process_signal_selected_row_count_sum_over_mature_count_sum    0.090
+star_read_count                                                           0.088
+mirDeep_sensitivity                                                       0.068
+total_read_count                                                          0.059
+mature_read_count                                                         0.059
+sensitivity_uncertainty                                                   0.041
+Folding Energy                                                            0.037
+num_locis                                                                 0.035
+miRDeep2_score                                                            0.034
+consensus_mature_sequence_length                                          0.033
+3' Overhang Top                                                           0.028
+consensus_star_sequence_length                                            0.027
+3' Overhang Bot                                                           0.026
+significant_randfold_p-value                                              0.009
+loop_read_count                                                           0.006
+mature_5'u_or_3'u                                                         0.004
+
+Released model, share of total gain:
+homologous_seed_in_miRBase                                                0.312
+consensus_precursor_sequence_length                                       0.106
+five_prime_process_signal_selected_row_count_sum_over_mature_count_sum    0.076
+star_read_count                                                           0.071
+total_read_count                                                          0.063
+consensus_mature_sequence_length                                          0.051
+mirDeep_sensitivity                                                       0.049
+mature_read_count                                                         0.049
