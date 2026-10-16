@@ -76,7 +76,9 @@ In `--out_dir` (default `AutoDeepRun/models/<timestamp>/`):
  * -nw, --no_weights             Flag that skips saving the model
  * --out_dir <path>              Output directory: Default models/<timestamp>
  * -hp, --hyperparameters <str>  Path to hyperparameter configuration file in
-                                case of manual tuning
+                                case of manual tuning: "name value" lines,
+                                a JSON object, or config.json from an earlier
+                                run (see AutoDeep train --help)
  * --help                        Show this message and exit.
 ### AutoDeep visualize
 

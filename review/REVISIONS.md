@@ -46,7 +46,7 @@ Write each answer under its question. Claude Code: if an item depends on an unan
 - [x] **A2. Training mutates the installed package.** `boosted_forest_training.py` L91 writes user labels into `training_data/`; L267 overwrites `model_weights/miRNA_model.json` unless `-nw` is given.
   Fix: write user data, model, config and metrics to an output directory (default `./AutoDeepRun/models/<timestamp>/`); never write inside the package. Add `--model PATH` to inference (default: bundled model).
   Test: after `AutoDeep train` in a temp dir, package files are byte-identical.
-- [ ] **A3. `eval()` on the hyperparameter file.** `boosted_forest_training.py` L154 and `alt_model_test.py` L169.
+- [~] **A3. `eval()` on the hyperparameter file.** `boosted_forest_training.py` L154 and `alt_model_test.py` L169.
   Fix: JSON or YAML, validated against the allowed keys (already listed at L147).
   Test: a file containing `__import__('os')` is rejected.
 - [ ] **A4. `alt_model_test.py` cannot run end to end.** In the tuning branch, L413-481 use an undefined `config` (UnboundLocalError at L422) and assume SVM parameters for every model; L495 saves the model-type string, not the fitted pipeline; the `xgboost` branch is unreachable (click choices, L21).
