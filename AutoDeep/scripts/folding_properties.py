@@ -1,11 +1,10 @@
 
 import re
 import pandas as pd
-import pypdf  # REMOVED: PyPDF dependency
-from pypdf import PdfReader  # REMOVED: PyPDF dependency
 import numpy as np
 import sys
 import os
+from mrd import parse_mrd, five_prime_features
 from tqdm import tqdm
 import warnings
 
@@ -171,84 +170,9 @@ intersected_data = pd.merge(data, data2, on='provisional_id') #temporary interse
 #print(intersected_data.head())
 
 #---------------------------------------------------------------------
-#Beginning of 5' processing inference
-
-# with warnings.catch_warnings():
-# 	warnings.filterwarnings("ignore", category = DeprecationWarning)
-# 	five_prime_process_signal_selected_row_count_sum_over_mature_count_sum = []
-# 	five_prime_process_signal_top_loci_count_sum_over_mature_count_sum = []
-# 	five_prime_process_signal_all_loci_row_count_over_mature_row_count = []
-# 	num_locis = []
-
-# 	loci = list(intersected_data['provisional_id'])
-
-# 	print("Searching for 5\' processing in potential miRNAs")
-
-# 	directory = sys.argv[1]
-# 	pdf_dirs = []
-# 	for root, dirs, files in os.walk(directory):
-# 					for dir in dirs:
-# 									if dir.startswith('pdf'):
-# 													pdf_dirs.append(dir)
-
-# 	target_dir = pdf_dirs[-1]
-
-
-# 	for item in tqdm(loci):
-# 					reader = PdfReader(directory + "/" + target_dir + "/" + item + ".pdf")
-# 					num_pages = len(reader.pages)
-# 					page = reader.pages[0]
-# 					init_page = page.extract_text()
-# 					alignments = [np.fromstring(item.split()[0], dtype = np.uint8) for item in init_page.split("\n") if item.count('.')/(len(item) + 0.00000001) > 0.5 and item.count('(') == 0]
-# 					counts = [int(item.split()[1]) for item in init_page.split("\n") if item.count('.')/(len(item) + 0.00000001) > 0.5 and item.count('(') == 0]
-# 					for i in range(0, len(reader.pages[1:])):
-# 									cur_page = reader.pages[1:][i].extract_text().split('\n')
-# 									for j, item in enumerate(cur_page):
-# 													if item.count('.')/(len(item) + 0.00000001) > 0.5:
-# 																	alignments.append(np.fromstring(item, dtype = np.uint8))
-# 																	counts.append(int(cur_page[j+1]))
-# 					alignments = np.array(alignments)
-# 					counts = np.array(counts)
-# 					leftmost_nuc = [(alignments[i, np.where(alignments[i,:] != 46)[0][0]], np.where(alignments[i,:] != 46)[0][0]) for i in range(alignments.shape[0])] # 46 is the ASCII code for a period
-
-
-
-# 					selection_df = pd.DataFrame({'Leftmost Nucleotide': [item[0] for item in leftmost_nuc], 'Position': [item[1] for item in leftmost_nuc], 'Counts': counts})
-
-# 					max_leftmost_nuc = selection_df.iloc[np.argmax(selection_df['Counts']),:]['Leftmost Nucleotide']
-
-# 					max_position = selection_df.iloc[np.argmax(selection_df['Counts']),:]['Position']
-
-# 					selected_rows = selection_df[(selection_df['Leftmost Nucleotide'] == max_leftmost_nuc) & (selection_df['Position'] == max_position)]
-
-
-
-					
-# 					if num_pages > selected_rows.shape[0]:
-# 						num_pages = selected_rows.shape[0]
-					
-# 					top_loci = selected_rows.iloc[np.argpartition(selected_rows['Counts'], -num_pages)[-num_pages:],:]
-# 					tdf = selection_df[(selection_df['Position'] - max_position) <= 20]
-
-
-# 					loci_count = selection_df.shape[0]
-
-
-# 					five_prime_process_signal_selected_row_count_sum_over_mature_count_sum.append(sum(selected_rows['Counts'])/sum(tdf['Counts']))
-# 					five_prime_process_signal_top_loci_count_sum_over_mature_count_sum.append(sum(top_loci['Counts'])/sum(tdf['Counts']))
-# 					five_prime_process_signal_all_loci_row_count_over_mature_row_count.append(selected_rows.shape[0]/tdf.shape[0])
-# 					num_locis.append(loci_count)
-
-
-
-# 	signaling_df = pd.DataFrame({'provisional_id': loci, "five_prime_process_signal_selected_row_count_sum_over_mature_count_sum" : five_prime_process_signal_selected_row_count_sum_over_mature_count_sum,  'num_locis' : num_locis})
-# 	intersected_data = pd.merge(signaling_df, intersected_data, on='provisional_id')
-
-#---------------------------------------------------------------------
-# Beginning of 5' processing inference (NEW: using .mrd file instead of PDF)
-
-# OLD PDF-BASED IMPLEMENTATION (COMMENTED OUT) - Removed to eliminate PyPDF dependency
-# See no_pdf.ipynb for the original implementation details
+# Entropy-based 5' metrics (normalized_entropy, normalized_entropy_s).
+# Not part of the shipped model's feature set, so they are not written to
+# fully_formatted_data.csv; kept for training on training_data/ later.
 
 def parse_mrd_file(mrd_filepath):
 	"""
@@ -523,11 +447,14 @@ def calculate_homogeneity_score(five_prime_df, miRNA_id=None):
 		'coefficient_variation_s': cv_s,
 	}
 
-print("Searching for 5\' processing in potential miRNAs using .mrd file")
+#---------------------------------------------------------------------
+#Beginning of 5' processing inference, from miRDeep2's output.mrd
+
+print("Searching for 5\' processing in potential miRNAs")
 
 directory = sys.argv[1]
 
-# Find output.mrd file recursively in directory (equivalent to: find <input_dir> -type f -name "output.mrd")
+# Find output.mrd recursively in the miRDeep2 run directory
 mrd_filepath = None
 for root, dirs, files in os.walk(directory):
 	if 'output.mrd' in files:
@@ -535,56 +462,26 @@ for root, dirs, files in os.walk(directory):
 		break
 
 if mrd_filepath is None:
-	print(f"Error: output.mrd not found in {directory}")
+	print(f"Error: output.mrd not found in {directory}", file=sys.stderr)
 	sys.exit(1)
 
 print(f"Found output.mrd at: {mrd_filepath}")
+mrd_loci = parse_mrd(mrd_filepath)
 
-# Parse entries and build dataframes
-entries_alignments = parse_mrd_file(mrd_filepath)
-dfs = build_dataframes_from_entries(entries_alignments)
-
-# Extract 5' metrics for each entry
-five_prime_metrics = []
 loci = list(intersected_data['provisional_id'])
+missing = [item for item in loci if item not in mrd_loci]
+if missing:
+	print(f"Error: {len(missing)} loci from result.csv are not in {mrd_filepath}, e.g. {missing[:3]}", file=sys.stderr)
+	sys.exit(1)
 
-for df, miRNA_id in tqdm(dfs):
-	# Extract 5' position metrics
-	five_prime_df = extract_five_prime_metrics(df)
-	
-	# Calculate homogeneity score
-	if not five_prime_df.empty:
-		metrics = calculate_homogeneity_score(five_prime_df, miRNA_id)
-		if metrics:
-			metrics['provisional_id'] = miRNA_id if miRNA_id else 'unknown'
-			five_prime_metrics.append(metrics)
+five_prime_process_signal_selected_row_count_sum_over_mature_count_sum = []
+num_locis = []
+for item in tqdm(loci):
+	homogeneity, loci_count = five_prime_features(mrd_loci[item])
+	five_prime_process_signal_selected_row_count_sum_over_mature_count_sum.append(homogeneity)
+	num_locis.append(loci_count)
 
-# Create dataframe from metrics
-if five_prime_metrics:
-	signaling_df = pd.DataFrame(five_prime_metrics)
-	
-	# Merge with intersected_data
-	# intersected_data = pd.merge(
-	# 	signaling_df[['provisional_id', 'max_prop', 'top1_prop', 'top2_prop', 'top3_prop', 
-	# 				  'normalized_entropy', 'gini_coefficient', 'n_distinct_positions', 
-	# 				  'coefficient_variation', 'total_count']], 
-	# 	intersected_data, 
-	# 	on='provisional_id', 
-	# 	how='left'
-	# )
-	# intersected_data = pd.merge(
-	# 	signaling_df[['provisional_id','normalized_entropy','num_locis']], 
-	# 	intersected_data, 
-	# 	on='provisional_id', 
-	# 	how='left'
-	# )
-	intersected_data = pd.merge(
-		signaling_df[['provisional_id','normalized_entropy','normalized_entropy_s']], 
-		intersected_data, 
-		on='provisional_id', 
-	)
-else:
-	print("Warning: No 5' metrics extracted from .mrd file")
+signaling_df = pd.DataFrame({'provisional_id': loci, "five_prime_process_signal_selected_row_count_sum_over_mature_count_sum" : five_prime_process_signal_selected_row_count_sum_over_mature_count_sum,  'num_locis' : num_locis})
+intersected_data = pd.merge(signaling_df, intersected_data, on='provisional_id')
 
 intersected_data.to_csv(os.path.join(current_dir, "AutoDeepRun/fully_formatted_data.csv"), index = False)
-

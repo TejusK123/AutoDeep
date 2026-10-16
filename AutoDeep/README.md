@@ -47,9 +47,7 @@ AutoDeep <directory>
 ```
 directory/
 ├── result_<N>.csv
-└── pdfs_<N>/
-    ├── <loci_name_N>.pdf
-    └── ...
+└── output.mrd
 ```
 
 **Output:** `AutoDeepRun/` directory containing classified miRNAs

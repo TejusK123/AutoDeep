@@ -63,7 +63,7 @@ Write each answer under its question. Claude Code: if an item depends on an unan
 
 Do B1 first and B8 last.
 
-- [ ] **B1. Parse `output.mrd`, not PDFs.** `folding_properties.py` L187-240 extract read alignments from `pdfs_*/<locus>.pdf` with pypdf, which breaks across miRDeep2 and PDF-library versions.
+- [~] **B1. Parse `output.mrd`, not PDFs.** `folding_properties.py` L187-240 extract read alignments from `pdfs_*/<locus>.pdf` with pypdf, which breaks across miRDeep2 and PDF-library versions.
   Fix: a parser for miRDeep2's `output.mrd` (per-locus `exp` string marking flank, mature, loop and star; read lines with counts).
   Test: on miRDeep2's tutorial run, per-arm read counts from the parser equal the mature, star and loop counts in `result.csv`.
 - [ ] **B2. 5'-homogeneity denominator (Q2).** `folding_properties.py` L231, `tdf = selection_df[(selection_df['Position'] - max_position) <= 20]`, keeps every read that starts upstream of the dominant read. For 3p-arm miRNAs, star and loop reads therefore enter the denominator and bias the feature low. Also, L230's `top_loci` (sized by the PDF page count) feeds a feature that is never saved (L244), although the manuscript describes it.

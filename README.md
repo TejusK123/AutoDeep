@@ -41,8 +41,7 @@ The input directory should have the following file structure:
 
     ├── directory in which miRDeep2 was run
     │   ├── result_<[0-9]>.csv
-    │   ├── pdfs_<[0-9]>
-    │   │   ├── <loci_name_[0-9]>.pdf
+    │   ├── output.mrd
 
 #### Output
 A directory named "AutoDeepRun" which contains

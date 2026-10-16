@@ -99,7 +99,7 @@ DESCRIPTION:
 
 ARGUMENTS:
     <directory>         Path to directory containing mirDeep2 outputs
-                        Should contain: result_*.csv and pdfs_*/ subdirectories
+                        Should contain: result_*.csv and output.mrd
 
 OPTIONS:
     -h, --help          Show this help message
