@@ -125,3 +125,13 @@ def test_inference_missing_model_is_an_error(tmp_path):
                             capture_output=True, text=True)
     assert result.returncode != 0
     assert "nope.json" in result.stderr
+
+
+def test_training_adds_labels_to_bundled_data(run_dir):
+    # The bundled data must have the pipeline's feature columns, so -t works without -n
+    result = train(run_dir, "-t", "labels.csv", "-hp", "hp.txt", "--out_dir", "models/db")
+    assert result.returncode == 0, result.stdout + result.stderr
+    config = json.loads((run_dir / "models" / "db" / "config.json").read_text())
+    assert os.path.basename(config["training_data"]) == "training_data_pre"
+    # The Pomonella labels repeat rows already in the bundled data
+    assert config["n_rows"] == 2907

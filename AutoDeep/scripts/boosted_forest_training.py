@@ -109,7 +109,9 @@ def train(args):
     # Loading all relevant paths. Training reads the package's training data
     # but writes only to out_dir, never inside the package.
     base_path = os.path.split(os.path.dirname(os.path.realpath(__file__)))[0]
-    data_path = os.path.join(base_path, "training_data")
+    # training_data_pre/ has the features the pipeline produces and the shipped
+    # model was trained on; training_data/ holds the newer entropy features
+    data_path = os.path.join(base_path, "training_data_pre")
     current_dir = os.getcwd()
 
     if "AutoDeepRun" not in os.path.basename(current_dir):

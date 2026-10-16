@@ -172,7 +172,7 @@ intersected_data = pd.merge(data, data2, on='provisional_id') #temporary interse
 #---------------------------------------------------------------------
 # Entropy-based 5' metrics (normalized_entropy, normalized_entropy_s).
 # Not part of the shipped model's feature set, so they are not written to
-# fully_formatted_data.csv; kept for training on training_data/ later.
+# fully_formatted_data.csv; they match the newer data in training_data/.
 
 def parse_mrd_file(mrd_filepath):
 	"""
