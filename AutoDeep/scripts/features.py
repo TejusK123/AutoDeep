@@ -22,6 +22,8 @@ FLAG_NAMES = {
 
 # Class index i is the model's output column i
 LABELS = ["Candidate", "Confident", "falsepositive"]
+# Name of the label column in the training data CSVs
+LABEL_COLUMN = "Candidate/Confident/no-mirna"
 
 
 def _lookup(values, mapping, column):

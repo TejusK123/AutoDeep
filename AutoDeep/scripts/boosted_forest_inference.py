@@ -2,6 +2,7 @@ import pandas as pd
 import xgboost
 from xgboost import XGBClassifier
 import numpy as np
+import argparse
 import os
 import sys
 from features import LABELS, encode_features, decode_features, decode_labels
@@ -9,7 +10,13 @@ from features import LABELS, encode_features, decode_features, decode_labels
 
 # Loading all relevant paths
 base_path = os.path.split(os.path.dirname(os.path.realpath(__file__)))[0]
-model_path = os.path.join(base_path, "model_weights/miRNA_model.json")
+parser = argparse.ArgumentParser(prog="AutoDeep infer")
+parser.add_argument("--model", default=os.path.join(base_path, "model_weights/miRNA_model.json"),
+                    help="Model JSON to use (default: the bundled model)", metavar="<path>")
+model_path = parser.parse_args().model
+if not os.path.isfile(model_path):
+    sys.exit(f"Error: Model file not found: {model_path}")
+print(f"Using model: {model_path}")
 current_dir = os.getcwd()
 data_dir = os.path.join(current_dir, "AutoDeepRun/fully_formatted_data.csv")
 

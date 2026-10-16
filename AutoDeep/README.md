@@ -54,7 +54,7 @@ directory/
 
 ### Training a Custom Model
 
-Train a new model on your dataset:
+Train a new model on your dataset. The model, its config, metrics and your labelled data are written to `AutoDeepRun/models/<timestamp>/`; the bundled model is never changed. Use a trained model with `AutoDeep infer <directory> --model <path>`.
 
 ```bash
 AutoDeep train [options]

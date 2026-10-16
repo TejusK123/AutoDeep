@@ -29,7 +29,8 @@ EXAMPLES:
     parser.add_argument(
         "-t", "--targets_path",
         type=str,
-        help="Path to CSV file with custom training targets",
+        nargs="+",
+        help="CSV file(s) with custom training targets, or user_data.csv from an earlier training run",
         metavar="<path>"
     )
     
@@ -51,14 +52,21 @@ EXAMPLES:
         "-o", "--output",
         type=str,
         default="training_log",
-        help="Name of output training log file (default: training_log)",
+        help="Name of the tuning log CSV in the output directory (default: training_log)",
         metavar="<name>"
     )
     
     parser.add_argument(
         "-nw", "--no_weights",
         action="store_true",
-        help="Skip saving model weights (recommended for testing)"
+        help="Skip saving the model (other outputs are still written)"
+    )
+
+    parser.add_argument(
+        "--out_dir",
+        type=str,
+        help="Directory for the model, config, metrics and user data (default: models/<timestamp>)",
+        metavar="<path>"
     )
     
     parser.add_argument(
@@ -75,8 +83,9 @@ EXAMPLES:
         parser.error("Error: No data to train on. Either unset -n/--no_db_data or provide --targets_path")
     
     # Validate file paths if provided
-    if args.targets_path and not os.path.isfile(args.targets_path):
-        parser.error(f"Error: Targets file not found: {args.targets_path}")
+    for path in args.targets_path or []:
+        if not os.path.isfile(path):
+            parser.error(f"Error: Targets file not found: {path}")
     
     if args.hyperparameters and not os.path.isfile(args.hyperparameters):
         parser.error(f"Error: Hyperparameters file not found: {args.hyperparameters}")
@@ -92,18 +101,27 @@ def train(args):
     from sklearn.model_selection import train_test_split
     from sklearn.metrics import accuracy_score, f1_score
     from sklearn.utils import class_weight
-    from features import LABELS, encode_features, encode_labels
+    import json
+    import time
+    from features import LABELS, LABEL_COLUMN, encode_features, encode_labels
 
     
-    # Loading all relevant paths
+    # Loading all relevant paths. Training reads the package's training data
+    # but writes only to out_dir, never inside the package.
     base_path = os.path.split(os.path.dirname(os.path.realpath(__file__)))[0]
-    weights_path = os.path.join(base_path, "model_weights/miRNA_model.json")
     data_path = os.path.join(base_path, "training_data")
     current_dir = os.getcwd()
 
     if "AutoDeepRun" not in os.path.basename(current_dir):
         print("Error: Please run in AutoDeepRun directory")
         sys.exit(1)
+
+    out_dir = args.out_dir or os.path.join("models", time.strftime("%Y%m%d-%H%M%S"))
+    if os.path.exists(out_dir):
+        print(f"Error: Output directory already exists: {out_dir}")
+        sys.exit(1)
+    os.makedirs(out_dir)
+    print(f"Writing outputs to: {os.path.abspath(out_dir)}")
     
     # Loading all database data
     dfs = []
@@ -122,19 +140,30 @@ def train(args):
             pass
 
     if args.targets_path is not None:
-        data = pd.read_csv("fully_formatted_data.csv")
-        merged_data = pd.merge(data, pd.read_csv(args.targets_path), on='provisional_id')
-        merged_data = merged_data[merged_data.iloc[:,-1].isin(LABELS)] #Filter out any other classes
+        user_frames = []
+        for path in args.targets_path:
+            targets_df = pd.read_csv(path)
+            if targets_df.shape[1] > 2:
+                # user_data.csv from an earlier run: features and labels already joined
+                frame = targets_df
+            else:
+                data = pd.read_csv("fully_formatted_data.csv")
+                frame = pd.merge(data, targets_df, on='provisional_id')
+            user_frames.append(frame.rename(columns={frame.columns[-1]: LABEL_COLUMN}))
+        merged_data = pd.concat(user_frames, ignore_index=True)
+        merged_data = merged_data[merged_data[LABEL_COLUMN].isin(LABELS)] #Filter out any other classes
         print(f"input data shape before merging with database data: {merged_data.shape}")
-        
-        #Save the user data to the database
-        import time
-        merged_data.to_csv(os.path.join(data_path, f"{args.targets_path}_{str(round(time.time()))}.csv"), index=False) 
 
-        try:
+        # Save the user data with the run, so it can be passed to -t again later
+        merged_data.to_csv(os.path.join(out_dir, "user_data.csv"), index=False)
+
+        if not args.no_db_data and dfs != []:
+            if list(training_data.columns) != list(merged_data.columns):
+                print("Error: user data columns do not match the training data columns")
+                print(f"  only in user data: {sorted(set(merged_data.columns) - set(training_data.columns))}")
+                print(f"  only in training data: {sorted(set(training_data.columns) - set(merged_data.columns))}")
+                sys.exit(1)
             merged_data = pd.concat([training_data, merged_data], ignore_index=True)
-        except:
-            pass
 
         print(merged_data.shape, "after merging with database data")
 
@@ -144,6 +173,8 @@ def train(args):
     merged_data.drop_duplicates(inplace=True)
     print(merged_data.shape, "After dropping duplicates")
     #Preprocessing
+    n_rows = int(merged_data.shape[0])
+    class_counts = {str(k): int(v) for k, v in merged_data.iloc[:,-1].value_counts().items()}
     targets = encode_labels(merged_data.iloc[:,-1])
     merged_data = merged_data.iloc[:,1:-1]
     
@@ -158,6 +189,7 @@ def train(args):
     y_pred = model.predict(X_test)
     accuracy = accuracy_score(y_test, y_pred)
     print(f"naive model accuracy post-train {accuracy}")
+    metrics = {"naive_accuracy": float(accuracy)}
     
     if args.hyperparameters:
         print("Using manual hyperparameters")
@@ -184,6 +216,8 @@ def train(args):
         print(f"Accuracy: {accuracy}")
         print(f"Weighted F1 score: {weighted_f1score}")
         print(f"Macro F1 score: {macro_f1score}")
+        metrics.update(accuracy=float(accuracy), weighted_f1_score=float(weighted_f1score),
+                       macro_f1_score=float(macro_f1score))
     else:
         #----raytune hyperparameter tuning
         print("Starting hyperparameter tuning")
@@ -257,20 +291,39 @@ def train(args):
             print(f"{item} : {best_result.metrics[item]}")
         print(f"The corresponding config is {best_result.config}")
 
-        current_dir = os.getcwd()
-        data_dir = os.path.join(current_dir, f"{args.output}.csv")                 
+        data_dir = os.path.join(out_dir, f"{args.output}.csv")
         df.to_csv(data_dir, index=False)
         print(f"Training log saved at: {data_dir}")
 
+        config = best_result.config
+        metrics.update({key: float(value) for key, value in best_result.metrics.items()
+                        if key in ("mean_accuracy", "std_accuracy", "weighted_f1_score", "std_weighted_f1_score",
+                                   "macro_f1_score", "std_macro_f1_score")})
+        metrics["accuracy"] = metrics["mean_accuracy"]
         best_model = XGBClassifier(**best_result.config)
         best_model.fit(X_train, y_train)
 
+    run_config = {
+        "hyperparameters": {key: (value.item() if hasattr(value, "item") else value) for key, value in config.items()},
+        "arguments": vars(args),
+        "training_data": None if args.no_db_data else data_path,
+        "n_rows": n_rows,
+        "class_counts": class_counts,
+        "xgboost_version": xgb.__version__,
+        "created": time.strftime("%Y-%m-%d %H:%M:%S"),
+    }
+    with open(os.path.join(out_dir, "config.json"), "w") as f:
+        json.dump(run_config, f, indent=2)
+    with open(os.path.join(out_dir, "metrics.json"), "w") as f:
+        json.dump(metrics, f, indent=2)
+
     if args.no_weights:
-        print("Model weights not saved")
-        pass
+        print("Model not saved (-nw)")
     else:
-        best_model.save_model(weights_path)
-        print(f"Updated model saved at: {weights_path}")
+        model_path = os.path.join(out_dir, "miRNA_model.json")
+        best_model.save_model(model_path)
+        print(f"Model saved at: {model_path}")
+        print(f"Use it with: AutoDeep infer <directory> --model {os.path.abspath(model_path)}")
 
 
 if __name__ == "__main__":

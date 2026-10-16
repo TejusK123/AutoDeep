@@ -103,6 +103,8 @@ ARGUMENTS:
 
 OPTIONS:
     -h, --help          Show this help message
+    --model <path>      Model JSON to use (default: the bundled model),
+                        e.g. one written by AutoDeep train
 
 OUTPUT:
     Results are saved to:
@@ -138,13 +140,16 @@ DESCRIPTION:
 
 OPTIONS:
     -h, --help                  Show this help message
-    -t, --targets_path <path>   Path to CSV file with custom training targets
-                                (CSV format: column 1 = loci names, column 2 = class)
+    -t, --targets_path <path> [<path> ...]
+                                CSV file(s) with custom training targets
+                                (CSV format: column 1 = loci names, column 2 = class),
+                                or user_data.csv from an earlier training run
                                 Valid classes: Candidate, Confident, falsepositive
     -n, --no_db_data            Omit original database data from training
     -r, --tuning_rounds <int>   Number of hyperparameter tuning rounds (default: 10)
-    -o, --output <name>         Output training log file name (default: training_log)
-    -nw, --no_weights           Skip saving model weights (recommended for testing)
+    -o, --output <name>         Tuning log file name (default: training_log)
+    -nw, --no_weights           Skip saving the model (other outputs are still written)
+    --out_dir <path>            Output directory (default: models/<timestamp>)
     -hp, --hyperparameters <path>
                                 Path to hyperparameter config file for manual tuning
                                 (overrides automatic tuning)
@@ -165,8 +170,13 @@ HYPERPARAMETER CONFIG FORMAT:
         n_estimators 500
 
 OUTPUT:
-    - model_weights/miRNA_model.json  (trained model)
-    - training_log.csv                (training metrics, if using auto-tuning)
+    Written to --out_dir (default: AutoDeepRun/models/<timestamp>/);
+    nothing inside the AutoDeep installation is changed:
+    - miRNA_model.json   (trained model; use with AutoDeep infer --model)
+    - config.json        (hyperparameters, options, data used)
+    - metrics.json       (accuracy and F1 scores)
+    - user_data.csv      (your labelled loci, if -t was given)
+    - training_log.csv   (tuning log, if using auto-tuning)
 
 EXAMPLES:
     AutoDeep train
@@ -200,6 +210,7 @@ OPTIONS:
     --no_tree               Skip generating individual decision tree plots (faster)
     -o, --output <dir>      Output directory base name (default: tree_plots)
                             Full path will be <name><timestamp>/
+    --model <path>          Model JSON to visualize (default: the bundled model)
 
 OUTPUT:
     Visualizations are saved in timestamped directory:
@@ -258,6 +269,7 @@ cmd_infer() {
     fi
     
     local input_dir="$1"
+    shift  # remaining options go to the inference step
     
     if [[ -z "$input_dir" ]]; then
         error "Missing required argument: directory"
@@ -311,7 +323,7 @@ cmd_infer() {
     info "Step 5/5: Extracting features and running classification..."
     python "$SCRIPT_DIR/csv_feature_extraction.py" || error "Feature extraction failed"
     python "$SCRIPT_DIR/folding_properties.py" "$input_dir" || error "Folding properties analysis failed"
-    python "$SCRIPT_DIR/boosted_forest_inference.py" || error "Classification inference failed"
+    python "$SCRIPT_DIR/boosted_forest_inference.py" "$@" || error "Classification inference failed"
     
     info "AutoDeep inference completed successfully!"
     echo ""
