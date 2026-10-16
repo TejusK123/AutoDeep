@@ -45,6 +45,13 @@ EXAMPLES:
         metavar="<directory>"
     )
     
+    parser.add_argument(
+        "--model",
+        type=str,
+        help="Model JSON to visualize (default: the bundled model)",
+        metavar="<path>"
+    )
+    
     args = parser.parse_args()
     visualize(args)
 
@@ -57,7 +64,7 @@ def visualize(args):
      
     print("Starting model visualization")
     base_path = os.path.split(os.path.dirname(os.path.realpath(__file__)))[0]
-    model_path = os.path.join(base_path, "model_weights/miRNA_model.json")
+    model_path = args.model or os.path.join(base_path, "model_weights/miRNA_model.json")
 
     timestamp = str(round(time.time()))
     try:
