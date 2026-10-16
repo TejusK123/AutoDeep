@@ -202,16 +202,16 @@ USAGE:
 DESCRIPTION:
     Generates visualizations and analyses of the trained model including:
     - Feature importance plots (by gain, weight, and cover)
-    - Individual decision tree visualizations
+    - Decision tree plots, labelled by round and class (with --trees)
 
 REQUIREMENTS:
-    - Must be run from within an AutoDeepRun directory
-    - Model must exist: model_weights/miRNA_model.json
-    - Requires graphviz system package for tree rendering
+    - Must be run from the directory that contains AutoDeepRun/
+    - Requires graphviz for tree plots (included in the conda environment)
 
 OPTIONS:
     -h, --help              Show this help message
-    --no_tree               Skip generating individual decision tree plots (faster)
+    --trees <N|all>         Also plot the trees of the first N boosting rounds
+                            (one tree per class), or every tree with 'all'
     -o, --output <dir>      Output directory base name (default: tree_plots)
                             Full path will be <name><timestamp>/
     --model <path>          Model JSON to visualize (default: the bundled model)
@@ -221,12 +221,12 @@ OUTPUT:
     - feature_importance_gain.png       (feature importance by gain)
     - feature_importance_weight.png     (feature importance by weight)
     - feature_importance_cover.png      (feature importance by cover)
-    - tree_plot0.png, tree_plot1.png... (individual decision trees, if not --no_tree)
+    - tree_round0000_Candidate.png, ... (decision trees, with --trees)
 
 EXAMPLES:
     cd AutoDeepRun
     AutoDeep visualize
-    AutoDeep visualize --no_tree
+    AutoDeep visualize --trees 5
     AutoDeep visualize -o my_plots
 
 TROUBLESHOOTING:
