@@ -8,18 +8,21 @@ AutoDeep is a tree-boosting software that further stratifies miRDeep2 (Mackowiak
 
 ## Requirements
 
-Linux system with GCC, Conda Environment generated from AutoDeep/AutoDeep.yml file
+Linux (x86-64) or macOS (Apple silicon), and Conda
 
 ## Installation
 
 ### Option 1 (Only option currently)
 
-Download the AutoDeep Directory.
-Within the Directory, and with the AutoDeep conda environment activated, type
+Download the repository. From its root, create and activate the conda environment, then put AutoDeep on your PATH (see AutoDeep/README.md):
 
 ```sh
-pip install -e .
+conda env create -f AutoDeep/AutoDeep.yml
+conda activate AutoDeep
+export PATH="$PATH:$(pwd)/AutoDeep"
 ```
+
+`AutoDeep/AutoDeep.linux-64.lock.yml` is the exact Linux environment the shipped model was trained in.
 
 ## Script Reference
 
