@@ -61,6 +61,7 @@ def train_model(model, no_db_data, tuning_rounds, output, targets_path, no_weigh
 
 	data_path = os.path.join(base_path, "training_data")
 	from features import LABELS, encode_features, encode_labels
+	from hyperparameters import read_hyperparameter_file
 	current_dir = os.getcwd()
 
 	if "AutoDeepRun" not in os.path.basename(current_dir):
@@ -162,14 +163,16 @@ def train_model(model, no_db_data, tuning_rounds, output, targets_path, no_weigh
 	# If manual hyperparameters provided, use them for SVC
 	if hyperparameters:
 		print(f"Using manual hyperparameters for {model.upper()}")
-		with open(hyperparameters, 'r') as f:
-			lines = list(filter(lambda x: len(x) != 0, (item.split() for item in f.readlines())))
-		config = {item[0]: eval(item[-1]) for item in lines}
+		try:
+			config = read_hyperparameter_file(hyperparameters)
+		except ValueError as e:
+			print(f"Error: {e}")
+			sys.exit(1)
 		if model == "svm":
 			model_pipe = Pipeline([
 				('imputer', SimpleImputer(strategy='mean')),
 				('scaler', StandardScaler()),
-				('svc', SVC(probability=True, class_weight='balanced', random_state=42, **{k: v for k, v in config.items() if k in SVC().get_params()}))
+				('svc', SVC(**{'probability': True, 'class_weight': 'balanced', 'random_state': 42, **{k: v for k, v in config.items() if k in SVC().get_params()}}))
 			])
 		elif model == "knn":
 			model_pipe = Pipeline([
@@ -181,7 +184,7 @@ def train_model(model, no_db_data, tuning_rounds, output, targets_path, no_weigh
 			model_pipe = Pipeline([
 				('imputer', SimpleImputer(strategy='mean')),
 				('scaler', StandardScaler()),
-				('mlp', MLPClassifier(max_iter=200, random_state=42, **{k: v for k, v in config.items() if k in MLPClassifier().get_params()}))
+				('mlp', MLPClassifier(**{'max_iter': 200, 'random_state': 42, **{k: v for k, v in config.items() if k in MLPClassifier().get_params()}}))
 			])
 		model_pipe.fit(X_train, y_train)
 		y_pred = model_pipe.predict(X_test)

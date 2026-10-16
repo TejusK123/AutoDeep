@@ -21,7 +21,7 @@ TARGET FILE FORMAT:
 EXAMPLES:
   AutoDeep train
   AutoDeep train --targets_path labels.csv --tuning_rounds 1000
-  AutoDeep train --targets_path labels.csv --hyperparameters config.txt
+  AutoDeep train --targets_path labels.csv --hyperparameters hp.json
   AutoDeep train --no_db_data --targets_path labels.csv
         """
     )
@@ -104,6 +104,7 @@ def train(args):
     import json
     import time
     from features import LABELS, LABEL_COLUMN, encode_features, encode_labels
+    from hyperparameters import load_xgboost_hyperparameters
 
     
     # Loading all relevant paths. Training reads the package's training data
@@ -197,17 +198,11 @@ def train(args):
         print("Using manual hyperparameters")
         X_train, X_test, y_train, y_test = train_test_split(merged_data, targets, test_size=0.2, stratify=targets)
         classes_weights = class_weight.compute_sample_weight(class_weight='balanced', y=y_train)
-        with open(args.hyperparameters, 'r') as f:
-            lines = list(filter(lambda x: len(x) != 0, (item.split() for item in f.readlines())))
-        
-        valid_attributes = ['max_depth', 'min_child_weight', 'subsample', 'eta', 'n_estimators', 'gamma', 'base_score', 'alpha', 'lambda', 'colsample_bytree', 'colsample_bylevel', 'colsample_bynode']
-        input_check = [(item not in valid_attributes, item) for item in [ind[0] for ind in lines]]
-        
-        if any([item[0] for item in input_check]):
-            print(f"Invalid hyperparameter(s): {[item[1] for item in input_check if item[0] == True]}")
+        try:
+            config = load_xgboost_hyperparameters(args.hyperparameters)
+        except ValueError as e:
+            print(f"Error: {e}")
             sys.exit(1)
-
-        config = {item[0] : eval(item[-1]) for item in lines}
         best_model = XGBClassifier(**config)
         best_model.fit(X_train, y_train, sample_weight=classes_weights)
         y_pred = best_model.predict(X_test)

@@ -161,13 +161,17 @@ TARGET FILE FORMAT:
 
 HYPERPARAMETER CONFIG FORMAT:
     Text file with one parameter per line, format: name value
+    (values are numbers), or a JSON object, or config.json from an
+    earlier training run. Nothing in the file is run as code.
     Valid parameters: max_depth, min_child_weight, subsample, eta, n_estimators,
                       gamma, base_score, alpha, lambda, colsample_bytree,
                       colsample_bylevel, colsample_bynode
-    Example:
+    Example (text):
         max_depth 6
         eta 0.1
         n_estimators 500
+    Example (JSON):
+        {"max_depth": 6, "eta": 0.1, "n_estimators": 500}
 
 OUTPUT:
     Written to --out_dir (default: AutoDeepRun/models/<timestamp>/);
@@ -181,7 +185,7 @@ OUTPUT:
 EXAMPLES:
     AutoDeep train
     AutoDeep train --targets_path labels.csv --tuning_rounds 1000
-    AutoDeep train --targets_path labels.csv --hyperparameters config.txt
+    AutoDeep train --targets_path labels.csv --hyperparameters hp.json
     AutoDeep train --no_db_data --targets_path custom_labels.csv
 
 EOF
