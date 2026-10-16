@@ -4,25 +4,61 @@ XGBoost post-filter for miRDeep2. It labels each novel pre-miRNA candidate Candi
 
 ## Current work
 
-We are revising the code in response to a mock peer review. The work list, with file/line references, open questions and acceptance tests, is in `review/REVISIONS.md`. Read it before starting any task. Put the item ID (A1, B2, ...) in branch names and commit messages.
+We are revising the code in response to a mock peer review. The work list, with file/line references, open questions and acceptance tests, is in `review/REVISIONS.md`. Read it before starting any task. Put the item ID (A1, B2, ...) in branch names and commit messages. REVISIONS.md line numbers refer to commit 133bf14; the code has moved since, so search for the quoted code.
+
+### Status (16 Oct 2026)
+
+- Done and merged: A1 (fixed flag/label encoding), A2 (training writes to a run folder), A3 (no `eval()` on hyperparameter files), A5 (visualize trees).
+- In progress: B1. The PDF-parity part is merged (features from `output.mrd` equal the pypdf values); B1's own acceptance test (per-arm read counts vs `result.csv`) is still to do.
+- Also merged, outside REVISIONS: portable conda env for osx-arm64; training reads `training_data_pre/`.
+- Next: A6 (seeds), then A7. A4 is on hold (see open decisions).
+
+### Open decisions (ask Tejus; do not decide)
+
+- A4: Tejus wants to keep using `alt_model_test.py` for SVM/KNN/MLP, but REVISIONS.md says retire it. Options: fix it in place (tuning branch crashes with UnboundLocalError and assumes SVM parameters; saving stores the model-type string and writes into the package) or retire it.
+- Q1-Q9 in REVISIONS.md are unanswered; B2-B8 and C1/C3/C5 depend on them.
+- Feature set: since B1 the pipeline produces the shipped model's features (`five_prime_process_signal_...`, `num_locis`). The entropy features in `training_data/` are computed by functions kept in `folding_properties.py` but not written out.
+- `review/METHODS_CHANGES.md` B1 entry needs the current Methods sentence pasted in (TODO).
+
+### Known issues not yet in REVISIONS.md
+
+- `init_data.py` rewrites the user's miRDeep2 `result_*.csv` in place (strips commas). Tests run on copies.
+- If `AutoDeep train` fails partway, the run folder is left behind.
+- `AutoDeep infer ... --model missing.json` only fails at the last step, after the whole pipeline has run.
+- `AutoDeep infer --help` names the output `AutoDeep_results.csv`; the file is `xgboost_judgement.csv`.
 
 ## Layout
 
-- `AutoDeep/scripts/AutoDeep.sh`: pipeline entry point (init_data.py, then RNAfold, csv_feature_extraction.py, folding_properties.py, boosted_forest_inference.py)
-- `AutoDeep/scripts/boosted_forest_training.py`: `AutoDeep train` (Ray Tune + OptunaSearch)
-- `AutoDeep/scripts/boosted_forest_visualization.py`: `AutoDeep visualize`
-- `AutoDeep/scripts/alt_model_test.py`: SVM/KNN/MLP comparison for Table 2 (to be retired, item A4)
+- `AutoDeep/AutoDeep`: bash wrapper; put `AutoDeep/` on PATH to get the `AutoDeep` command (there is no setup.py)
+- `AutoDeep/scripts/AutoDeep.sh`: command dispatcher. `infer` runs init_data.py, RNAfold, csv_feature_extraction.py, folding_properties.py, boosted_forest_inference.py
+- `AutoDeep/scripts/features.py`: fixed encodings of the flag columns and labels (Candidate 0, Confident 1, falsepositive 2), shared by all scripts (A1)
+- `AutoDeep/scripts/mrd.py`: parses miRDeep2's `output.mrd` and computes 5' homogeneity and `num_locis` (B1)
+- `AutoDeep/scripts/hyperparameters.py`: reads `-hp` files (text "name value", JSON, or a run's config.json) without running code (A3)
+- `AutoDeep/scripts/boosted_forest_inference.py`: selects the model's features by name; `--model PATH` (default: bundled model)
+- `AutoDeep/scripts/boosted_forest_training.py`: `AutoDeep train` (Ray Tune + OptunaSearch). Writes only to `--out_dir` (default `AutoDeepRun/models/<timestamp>/`): miRNA_model.json, config.json, metrics.json, user_data.csv, tuning log. `-t` takes several files
+- `AutoDeep/scripts/boosted_forest_visualization.py`: `AutoDeep visualize`; tree plots only with `--trees N|all`; `--model PATH`
+- `AutoDeep/scripts/alt_model_test.py`: SVM/KNN/MLP comparison for Table 2 (fate undecided, item A4)
 - `AutoDeep/training_data_pre/`: 2,907 labelled loci in 11 CSVs from 8 species; the shipped model's training data, read by `AutoDeep train`
 - `AutoDeep/training_data/`: 3,180 loci in 13 `new_data_*` CSVs with entropy-based 5' features (`normalized_entropy`, `normalized_entropy_s`); not used by the pipeline or shipped model
 - `AutoDeep/model_weights/miRNA_model.json`: shipped model (XGBoost 2.1.1, 983 rounds x 3 classes, depth 5)
-- `review/`: REVISIONS.md, reanalysis.py (reviewer's evaluation script), reanalysis_baseline.txt (its output on commit 133bf14)
+- `AutoDeep/AutoDeep.yml`: portable conda spec; `AutoDeep/AutoDeep.linux-64.lock.yml`: exact Linux env the shipped model was trained in
+- `review/`: REVISIONS.md, reanalysis.py (reviewer's evaluation script), reanalysis_baseline.txt (its output on commit 133bf14), reanalysis_osx-arm64.txt (its output on Tejus's Mac), METHODS_CHANGES.md
+- `tests/`: pytest suite (63 tests); `conftest.py` puts `AutoDeep/scripts` on the import path
 
 ## Environment
 
-- Conda env from `AutoDeep/AutoDeep.yml`: Python 3.9, xgboost 2.1.1, ViennaRNA 2.7.0, ray 2.37, optuna 4.1, pandas 2.2.2, scikit-learn 1.5.1
-- Development install: `pip install -e AutoDeep`
-- Tests: `pytest` from the repo root (create `tests/` if it does not exist)
+- Conda env `AutoDeep` from `AutoDeep/AutoDeep.yml` (works on osx-arm64 and linux-64): Python 3.9, numpy 1.23.5, xgboost 2.1.1, ViennaRNA 2.7.0, ray 2.37, optuna 4.1, pandas 2.2.2, scikit-learn 1.5.1, pdf2image 1.17.0 (exact pin required), pytest. No pypdf.
+- On Tejus's Mac the env is not activated in Claude's shell: call `/Users/tkoti/miniconda3/envs/AutoDeep/bin/python` directly, and put that `bin/` on PATH when running `AutoDeep.sh` (RNAfold and graphviz's `dot` live there).
+- Tests: `PYTHONDONTWRITEBYTECODE=1 python -m pytest tests` from the repo root. Set `AUTODEEP_TEST_RUN` to the local Pomonella test run (path in CLAUDE.local.md) to include the end-to-end tests; without it they are skipped.
+- Reanalysis on this Mac differs slightly from `reanalysis_baseline.txt` in the XGBoost rows only (arm64 vs x86 arithmetic; run-to-run identical). Compare later runs with `review/reanalysis_osx-arm64.txt`.
 - Machine-specific paths, such as the miRDeep2 run directories behind each training CSV, are in CLAUDE.local.md
+
+## Git workflow
+
+- GitHub: TejusK123/AutoDeep. Work branches start from `refactoring` and pull requests go into `refactoring` (GitHub's default branch is `main`; do not target it). `gh` is installed and logged in.
+- Per item: branch `<id>-<short-name>`, mark the item `[~]` in that branch, open a PR with the PR description written to the scratchpad.
+- After Tejus merges: `git pull` on `refactoring`, delete the branch locally and on GitHub if still there, mark the item `[x]`, and commit that one-line change directly to `refactoring`.
+- Tejus is new to Git: explain branch state plainly and keep the workflow simple.
 
 ## Rules
 

@@ -51,7 +51,7 @@ Write each answer under its question. Claude Code: if an item depends on an unan
   Test: a file containing `__import__('os')` is rejected.
 - [ ] **A4. `alt_model_test.py` cannot run end to end.** In the tuning branch, L413-481 use an undefined `config` (UnboundLocalError at L422) and assume SVM parameters for every model; L495 saves the model-type string, not the fitted pipeline; the `xgboost` branch is unreachable (click choices, L21).
   Fix: retire the script; its models move into the evaluation harness (C1).
-- [~] **A5. `AutoDeep visualize` loop.** `boosted_forest_visualization.py` L46-54 iterates `num_boosted_rounds()` over a dump holding 3 x rounds trees, and re-dumps the model on every iteration.
+- [x] **A5. `AutoDeep visualize` loop.** `boosted_forest_visualization.py` L46-54 iterates `num_boosted_rounds()` over a dump holding 3 x rounds trees, and re-dumps the model on every iteration.
   Fix: dump once; label each tree by round and class (`tree_info`); make tree export opt-in. SHAP plots (C4) become the default output.
 - [ ] **A6. Determinism.** No seeds in `train_test_split`, XGBoost or Optuna.
   Fix: a `--seed` option threaded through splits, `random_state` and `OptunaSearch(sampler=optuna.samplers.TPESampler(seed=...))`.
