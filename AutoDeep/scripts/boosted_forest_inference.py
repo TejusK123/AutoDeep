@@ -3,6 +3,7 @@ import xgboost
 from xgboost import XGBClassifier
 import numpy as np
 import os
+import sys
 from features import LABELS, encode_features, decode_features, decode_labels
 
 
@@ -28,9 +29,14 @@ labels = merged_data['provisional_id']
 merged_data = merged_data.drop(columns = ['provisional_id'])
 
 
-# Inference
-y_pred = model.predict(merged_data.to_numpy())
-y_logits = model.predict_proba(merged_data.to_numpy())
+# Inference, with columns matched to the model's features by name
+feature_names = model.get_booster().feature_names
+missing = [name for name in feature_names if name not in merged_data.columns]
+if missing:
+    sys.exit(f"Error: {data_dir} lacks features the model needs: {missing}")
+X = merged_data[feature_names].to_numpy()
+y_pred = model.predict(X)
+y_logits = model.predict_proba(X)
 
 # Create a dataframe with the results
 logits_df = pd.DataFrame(y_logits, columns = [f'{label}_Prob' for label in LABELS])
