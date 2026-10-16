@@ -40,7 +40,7 @@ Write each answer under its question. Claude Code: if an item depends on an unan
 
 ## Phase A: code fixes (normal predictions unchanged; items are independent and can run in parallel)
 
-- [~] **A1. Boolean encoding can silently flip.** `scripts/boosted_forest_inference.py` L22-24 use `astype('category').cat.codes`, so codes depend on which values appear in the user's file. In a run where every locus has randfold "yes", "yes" becomes 0, which the model reads as "no". Same pattern in `boosted_forest_training.py` L118-120 and `alt_model_test.py` L129-132.
+- [x] **A1. Boolean encoding can silently flip.** `scripts/boosted_forest_inference.py` L22-24 use `astype('category').cat.codes`, so codes depend on which values appear in the user's file. In a run where every locus has randfold "yes", "yes" becomes 0, which the model reads as "no". Same pattern in `boosted_forest_training.py` L118-120 and `alt_model_test.py` L129-132.
   Fix: one shared encoder (e.g. `AutoDeep/features.py`) with explicit maps `{"yes": 1, "no": 0}` and `{True: 1, False: 0, "True": 1, "False": 0}`; raise on unknown values; use it in training, inference and evaluation.
   Test: an all-"yes" randfold column encodes to 1; an unknown value raises.
 - [ ] **A2. Training mutates the installed package.** `boosted_forest_training.py` L91 writes user labels into `training_data/`; L267 overwrites `model_weights/miRNA_model.json` unless `-nw` is given.
