@@ -3,6 +3,7 @@ import xgboost
 from xgboost import XGBClassifier
 import numpy as np
 import os
+from features import LABELS, encode_features, decode_features, decode_labels
 
 
 # Loading all relevant paths
@@ -19,9 +20,7 @@ model.load_model(model_path)
 merged_data = pd.read_csv(data_dir)
 
 # Human readable to categorical
-merged_data['mature_5\'u_or_3\'u'] = merged_data['mature_5\'u_or_3\'u'].astype('category').cat.codes
-merged_data['homologous_seed_in_miRBase'] = merged_data['homologous_seed_in_miRBase'].astype('category').cat.codes
-merged_data['significant_randfold_p-value'] = merged_data['significant_randfold_p-value'].astype('category').cat.codes
+merged_data = encode_features(merged_data)
 
 
 #Extract True labels and drop them from the data
@@ -34,18 +33,15 @@ y_pred = model.predict(merged_data.to_numpy())
 y_logits = model.predict_proba(merged_data.to_numpy())
 
 # Create a dataframe with the results
-logits_df = pd.DataFrame(y_logits, columns = ['Candidate_Prob', 'Confident_Prob', 'falsepositive_Prob'])
+logits_df = pd.DataFrame(y_logits, columns = [f'{label}_Prob' for label in LABELS])
 inference_df = pd.concat([labels, merged_data, pd.DataFrame(y_pred, columns = ['prediction']), logits_df], axis = 1)
 
 
 
 
 # Categorical to human readable
-conversion_map = {0 : 'Candidate', 1 : 'Confident', 2 : 'falsepositive'}
-inference_df['prediction'] = inference_df['prediction'].apply(lambda x: conversion_map[x])
-inference_df['mature_5\'u_or_3\'u'] = inference_df['mature_5\'u_or_3\'u'].apply(lambda x: 'False' if x == 0 else 'True')
-inference_df['homologous_seed_in_miRBase'] = inference_df['homologous_seed_in_miRBase'].apply(lambda x: 'False' if x == 0 else 'True')
-inference_df['significant_randfold_p-value'] = inference_df['significant_randfold_p-value'].apply(lambda x: 'no' if x == 0 else 'yes')
+inference_df['prediction'] = decode_labels(inference_df['prediction'])
+inference_df = decode_features(inference_df)
 
 
 # Save the results

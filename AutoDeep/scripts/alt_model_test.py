@@ -60,6 +60,7 @@ def train_model(model, no_db_data, tuning_rounds, output, targets_path, no_weigh
 
 
 	data_path = os.path.join(base_path, "training_data")
+	from features import LABELS, encode_features, encode_labels
 	current_dir = os.getcwd()
 
 	if "AutoDeepRun" not in os.path.basename(current_dir):
@@ -94,7 +95,7 @@ def train_model(model, no_db_data, tuning_rounds, output, targets_path, no_weigh
 	if targets_path is not None:
 		data = pd.read_csv("fully_formatted_data.csv")
 		merged_data = pd.merge(data, pd.read_csv(targets_path), on='provisional_id')
-		merged_data = merged_data[merged_data.iloc[:, -1].isin(["Candidate", "Confident", "falsepositive"])]
+		merged_data = merged_data[merged_data.iloc[:, -1].isin(LABELS)]
 		print(f"input data shape before merging with database data: {merged_data.shape}")
 
 		# Save a copy into the training_data folder
@@ -120,16 +121,13 @@ def train_model(model, no_db_data, tuning_rounds, output, targets_path, no_weigh
 	print(merged_data.shape, "After dropping duplicates")
 
 	# Targets are expected to be the last column
-	targets = merged_data.iloc[:, -1].astype('category').cat.codes
+	targets = encode_labels(merged_data.iloc[:, -1])
 
 	# Features: drop first column (id) and last column (target)
 	X = merged_data.iloc[:, 1:-1].copy()
 
 	# Encode known categorical columns the same way as other scripts
-	cat_columns = ['mature_5\'u_or_3\'u', 'homologous_seed_in_miRBase', 'significant_randfold_p-value']
-	for col in cat_columns:
-		if col in X.columns:
-			X[col] = X[col].astype('category').cat.codes
+	X = encode_features(X)
 
 	# Train/test split
 	X_train, X_test, y_train, y_test = train_test_split(X, targets, test_size=0.2, stratify=targets if len(np.unique(targets))>1 else None)

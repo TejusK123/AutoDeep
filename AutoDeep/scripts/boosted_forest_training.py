@@ -92,6 +92,7 @@ def train(args):
     from sklearn.model_selection import train_test_split
     from sklearn.metrics import accuracy_score, f1_score
     from sklearn.utils import class_weight
+    from features import LABELS, encode_features, encode_labels
 
     
     # Loading all relevant paths
@@ -123,7 +124,7 @@ def train(args):
     if args.targets_path is not None:
         data = pd.read_csv("fully_formatted_data.csv")
         merged_data = pd.merge(data, pd.read_csv(args.targets_path), on='provisional_id')
-        merged_data = merged_data[merged_data.iloc[:,-1].isin(["Candidate", "Confident", "falsepositive"])] #Filter out any other classes
+        merged_data = merged_data[merged_data.iloc[:,-1].isin(LABELS)] #Filter out any other classes
         print(f"input data shape before merging with database data: {merged_data.shape}")
         
         #Save the user data to the database
@@ -143,12 +144,10 @@ def train(args):
     merged_data.drop_duplicates(inplace=True)
     print(merged_data.shape, "After dropping duplicates")
     #Preprocessing
-    targets = merged_data.iloc[:,-1].astype('category').cat.codes
+    targets = encode_labels(merged_data.iloc[:,-1])
     merged_data = merged_data.iloc[:,1:-1]
     
-    merged_data['mature_5\'u_or_3\'u'] = merged_data['mature_5\'u_or_3\'u'].astype('category').cat.codes
-    merged_data['homologous_seed_in_miRBase'] = merged_data['homologous_seed_in_miRBase'].astype('category').cat.codes
-    merged_data['significant_randfold_p-value'] = merged_data['significant_randfold_p-value'].astype('category').cat.codes
+    merged_data = encode_features(merged_data)
 
     X_train, X_test, y_train, y_test = train_test_split(merged_data, targets, test_size=0.2)
 
