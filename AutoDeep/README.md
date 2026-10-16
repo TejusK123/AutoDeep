@@ -106,8 +106,10 @@ AutoDeep/
 │   └── ...
 ├── model_weights/
 │   └── miRNA_model.json
-├── training_data/               # Sample training datasets
+├── training_data_pre/           # Training data of the shipped model (used by AutoDeep train)
 │   └── original_data_*.csv
+├── training_data/               # Newer data with entropy-based 5' features (not yet used)
+│   └── new_data_*.csv
 └── README.md
 ```
 

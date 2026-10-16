@@ -29,7 +29,7 @@ Write each answer under its question. Claude Code: if an item depends on an unan
 
 ## Baseline
 
-`python review/reanalysis.py AutoDeep/training_data AutoDeep/model_weights/miRNA_model.json` reproduces `review/reanalysis_baseline.txt`; expect small differences across library versions. Headline numbers (untuned XGBoost: 600 trees, depth 5, eta 0.03, balanced weights):
+`python review/reanalysis.py AutoDeep/training_data_pre AutoDeep/model_weights/miRNA_model.json` reproduces `review/reanalysis_baseline.txt`; expect small differences across library versions. Headline numbers (untuned XGBoost: 600 trees, depth 5, eta 0.03, balanced weights):
 
 | Model | Accuracy, random 80/20 x10 | Accuracy, leave-one-species-out | LOSO Confident recall, no seed match |
 | --- | --- | --- | --- |
