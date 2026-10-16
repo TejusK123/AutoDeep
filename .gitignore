@@ -1,0 +1,9 @@
+# Machine-specific paths (see CLAUDE.md)
+CLAUDE.local.md
+autodeep_claude_code_handoff.zip
+
+__pycache__/
+*.egg-info/
+.pytest_cache/
+.Rhistory
+.DS_Store
