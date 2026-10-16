@@ -84,7 +84,7 @@ In `--out_dir` (default `AutoDeepRun/models/<timestamp>/`):
 
 #### Description
 
-Visualizes XGBoost model via tree structure and gain metrics.
+Plots the XGBoost model's feature importance (gain, weight, cover) and, on request, its decision trees.
 
 
 #### Input 
@@ -94,7 +94,7 @@ N/A
 * Folder containing relevant figures as png
 
 #### Flags 
- * --no_tree          Do not output tree plots
+ * --trees <N|all>    Also plot the trees of the first N rounds (one per class), or all trees
   * -o, --output TEXT  Output directory for tree plots
   * --model <path>     Model JSON to visualize (default: the bundled model)
   * --help             Show this message and exit.
