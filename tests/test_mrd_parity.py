@@ -1,8 +1,7 @@
 """B1: features from output.mrd match the pypdf-era training data on a real run.
 
 Needs a local miRDeep2 run, so it is skipped unless AUTODEEP_TEST_RUN points at
-a directory holding mirdeep_Pomonella/ (result_*.csv, output.mrd) and
-AutoDeepRun/xgboost_judgement.csv from the pypdf version of AutoDeep.
+a directory holding mirdeep_Pomonella/ (result_*.csv, output.mrd).
 """
 import glob
 import os
@@ -33,7 +32,7 @@ def training():
 def test_mrd_features_match_training_data(training):
     loci = parse_mrd(os.path.join(RUN, "mirdeep_Pomonella", "output.mrd"))
     for pid, row in training.iterrows():
-        homogeneity, num_locis = five_prime_features(loci[pid])
+        homogeneity, num_locis = five_prime_features(loci[pid].reads)
         assert homogeneity == pytest.approx(row[HOMOGENEITY], abs=1e-9), pid
         assert num_locis == row["num_locis"], pid
 
