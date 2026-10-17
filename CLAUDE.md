@@ -51,7 +51,7 @@ We are revising the code in response to a mock peer review. The work list, with 
 - `AutoDeep/AutoDeep`: bash wrapper; put `AutoDeep/` on PATH to get the `AutoDeep` command (there is no setup.py)
 - `AutoDeep/scripts/AutoDeep.sh`: command dispatcher. `infer` runs init_data.py, RNAfold, csv_feature_extraction.py, folding_properties.py, boosted_forest_inference.py
 - `AutoDeep/scripts/features.py`: fixed encodings of the flag columns and labels (Candidate 0, Confident 1, falsepositive 2), shared by all scripts (A1)
-- `AutoDeep/scripts/mrd.py`: parses miRDeep2's `output.mrd` and computes 5' homogeneity and `num_locis` (B1)
+- `AutoDeep/scripts/mrd.py`: parses miRDeep2's `output.mrd` (per locus: `exp` string and reads) and computes 5' homogeneity, `num_locis` and per-arm read counts by miRDeep2's own rule (`arm_counts`; B1)
 - `AutoDeep/scripts/hyperparameters.py`: reads `-hp` files (text "name value", JSON, or a run's config.json) without running code (A3)
 - `AutoDeep/scripts/boosted_forest_inference.py`: selects the model's features by name; `--model PATH` (default: bundled model)
 - `AutoDeep/scripts/boosted_forest_training.py`: `AutoDeep train` (Ray Tune + OptunaSearch). Writes only to `--out_dir` (default `AutoDeepRun/models/<timestamp>/`): miRNA_model.json, config.json, metrics.json, user_data.csv, tuning log. `-t` takes several files; `--seed` (default 42) seeds splits, XGBoost and the Optuna sampler. `load_training_set()` and `tuning_search_alg()` are shared with alt_model_test.py
@@ -62,7 +62,7 @@ We are revising the code in response to a mock peer review. The work list, with 
 - `AutoDeep/model_weights/miRNA_model.json`: shipped model (XGBoost 2.1.1, 983 rounds x 3 classes, depth 5)
 - `AutoDeep/AutoDeep.yml`: portable conda spec and the only requirements list (no requirements.txt); `AutoDeep/AutoDeep.linux-64.lock.yml`: exact Linux env the shipped model was trained in
 - `review/`: REVISIONS.md, reanalysis.py (reviewer's evaluation script), reanalysis_baseline.txt (its output on commit 133bf14), reanalysis_osx-arm64.txt (its output on Tejus's Mac), METHODS_CHANGES.md
-- `tests/`: pytest suite (84 tests); `conftest.py` puts `AutoDeep/scripts` on the import path
+- `tests/`: pytest suite (93 tests); `conftest.py` puts `AutoDeep/scripts` on the import path
 - `examples/mirdeep2_tutorial/`: miRDeep2's tutorial output (`mirdeep2_output/`) and AutoDeep's expected `xgboost_judgement.csv`; checked by `tests/test_example.py`. Regenerate the expected file when a Phase B item changes a feature on purpose
 - `.github/workflows/tests.yml`: CI, pytest on ubuntu-latest and macos-latest in an env built from `AutoDeep.yml`, on pushes and PRs to `refactoring` and `main`
 
@@ -70,7 +70,7 @@ We are revising the code in response to a mock peer review. The work list, with 
 
 - Conda env `AutoDeep` from `AutoDeep/AutoDeep.yml` (works on osx-arm64 and linux-64): Python 3.9, numpy 1.23.5, xgboost 2.1.1, ViennaRNA 2.7.0, ray 2.37, optuna 4.1, pandas 2.2.2, scikit-learn 1.5.1, pdf2image 1.17.0 (exact pin required), pytest. No pypdf.
 - On Tejus's Mac the env is not activated in Claude's shell: call `/Users/tkoti/miniconda3/envs/AutoDeep/bin/python` directly, and put that `bin/` on PATH when running `AutoDeep.sh` (RNAfold and graphviz's `dot` live there).
-- Tests: `PYTHONDONTWRITEBYTECODE=1 python -m pytest tests` from the repo root. Set `AUTODEEP_TEST_RUN` to the local Pomonella test run (path in CLAUDE.local.md) to include the end-to-end tests; without it they are skipped (as in CI).
+- Tests: `PYTHONDONTWRITEBYTECODE=1 python -m pytest tests` from the repo root. Set `AUTODEEP_TEST_RUN` to the local Pomonella test run (path in CLAUDE.local.md) to include the tests that need it; without it they are skipped (as in CI). Tejus allows using that run for any test or check; read it in place, never write into it.
 - A separate conda env `mirdeep2` (miRDeep2 2.0.1.3 from bioconda) is on Tejus's Mac, used to make the tutorial example; see `examples/mirdeep2_tutorial/README.md`.
 - Reanalysis on this Mac differs slightly from `reanalysis_baseline.txt` in the XGBoost rows only (by up to 0.01; run-to-run identical). The baseline ran on x86 with NumPy 2.x, so both architecture and library versions differ. Compare later runs with `review/reanalysis_osx-arm64.txt`.
 - Machine-specific paths, such as the miRDeep2 run directories behind each training CSV, are in CLAUDE.local.md

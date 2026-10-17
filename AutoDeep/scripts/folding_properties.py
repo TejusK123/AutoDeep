@@ -477,7 +477,7 @@ if missing:
 five_prime_process_signal_selected_row_count_sum_over_mature_count_sum = []
 num_locis = []
 for item in tqdm(loci):
-	homogeneity, loci_count = five_prime_features(mrd_loci[item])
+	homogeneity, loci_count = five_prime_features(mrd_loci[item].reads)
 	five_prime_process_signal_selected_row_count_sum_over_mature_count_sum.append(homogeneity)
 	num_locis.append(loci_count)
 
