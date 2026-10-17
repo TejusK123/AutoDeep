@@ -153,6 +153,11 @@ OPTIONS:
     -hp, --hyperparameters <path>
                                 Path to hyperparameter config file for manual tuning
                                 (overrides automatic tuning)
+    --seed <int>                Random seed for the data splits, XGBoost and the
+                                tuning sampler (default: 42; saved in config.json).
+                                The same seed gives the same model. With more than
+                                10 tuning rounds, results also depend on the
+                                number of CPUs
 
 TARGET FILE FORMAT:
     CSV with two columns:
@@ -177,7 +182,7 @@ OUTPUT:
     Written to --out_dir (default: AutoDeepRun/models/<timestamp>/);
     nothing inside the AutoDeep installation is changed:
     - miRNA_model.json   (trained model; use with AutoDeep infer --model)
-    - config.json        (hyperparameters, options, data used)
+    - config.json        (hyperparameters, seed, options, data used)
     - metrics.json       (accuracy and F1 scores)
     - user_data.csv      (your labelled loci, if -t was given)
     - training_log.csv   (tuning log, if using auto-tuning)

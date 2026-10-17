@@ -75,12 +75,24 @@ EXAMPLES:
         help="Path to hyperparameter configuration file for manual tuning",
         metavar="<path>"
     )
+
+    parser.add_argument(
+        "--seed",
+        type=int,
+        default=42,
+        help="Random seed for the data splits, XGBoost and the tuning sampler (default: 42; saved in config.json). "
+             "With more than 10 tuning rounds, results also depend on the number of CPUs",
+        metavar="<int>"
+    )
     
     args = parser.parse_args()
     
     # Validate arguments
     if args.no_db_data and args.targets_path is None:
         parser.error("Error: No data to train on. Either unset -n/--no_db_data or provide --targets_path")
+
+    if not 0 <= args.seed < 2 ** 31:
+        parser.error(f"Error: --seed must be between 0 and {2 ** 31 - 1}, got {args.seed}")
     
     # Validate file paths if provided
     for path in args.targets_path or []:
@@ -91,6 +103,49 @@ EXAMPLES:
         parser.error(f"Error: Hyperparameters file not found: {args.hyperparameters}")
     
     train(args)
+
+
+def read_training_data(data_path):
+    """The training CSVs in data_path as one frame, or None if there are none."""
+    import pandas as pd
+
+    dfs = []
+    for root, dirs, files in os.walk(data_path):
+        # Listing order differs between machines, and row order decides the seeded splits
+        for file in sorted(files):
+            dfs.append(pd.read_csv(os.path.join(data_path, file)))
+    return pd.concat(dfs, ignore_index=True) if dfs else None
+
+
+def tuning_search_space():
+    """Ray Tune search space for the XGBoost hyperparameters."""
+    from ray import tune
+
+    return {
+        "objective": "multi:softprob",
+        "max_depth": tune.randint(1, 6),
+        "min_child_weight": tune.choice([1, 2, 3, 4]),
+        "subsample": tune.uniform(0.5, 1.0),
+        "eta": tune.loguniform(1e-4, 1e-1),
+        "n_estimators": tune.randint(100, 1000),
+        "gamma": tune.uniform(0, 1),
+        "base_score": tune.uniform(0.33, 0.66),
+        "alpha" : tune.loguniform(1e-3, 10),
+        "lambda" : tune.loguniform(1e-3, 1),
+        "colsample_bytree" : tune.uniform(0.8, 1),
+        "colsample_bylevel" : tune.uniform(0.8, 1),
+        "colsample_bynode" : tune.uniform(0.8, 1),
+    }
+
+
+def tuning_search_alg(seed):
+    """Optuna's TPE sampler, seeded. Its first 10 proposals are random draws in a fixed
+    order; later ones are fitted to the trials finished so far. Ray runs as many trials
+    at once as there are CPUs, so beyond 10 tuning rounds the results depend on the CPU count."""
+    import optuna
+    from ray.tune.search.optuna import OptunaSearch
+
+    return OptunaSearch(sampler=optuna.samplers.TPESampler(seed=seed, n_startup_trials=10))
 
 
 def train(args):
@@ -127,20 +182,9 @@ def train(args):
     print(f"Writing outputs to: {os.path.abspath(out_dir)}")
     
     # Loading all database data
-    dfs = []
-    if args.no_db_data:
-        pass
-    else:
-        for root, dirs, files in os.walk(data_path):
-            for file in files:
-                tempdf = pd.read_csv(os.path.join(data_path, file))
-                dfs.append(tempdf)
-
-        if dfs != []:
-            training_data = pd.concat(dfs, ignore_index=True)
-            print(training_data.shape, "Shape of database data")
-        else:
-            pass
+    training_data = None if args.no_db_data else read_training_data(data_path)
+    if training_data is not None:
+        print(training_data.shape, "Shape of database data")
 
     if args.targets_path is not None:
         user_frames = []
@@ -160,7 +204,7 @@ def train(args):
         # Save the user data with the run, so it can be passed to -t again later
         merged_data.to_csv(os.path.join(out_dir, "user_data.csv"), index=False)
 
-        if not args.no_db_data and dfs != []:
+        if training_data is not None:
             if list(training_data.columns) != list(merged_data.columns):
                 print("Error: user data columns do not match the training data columns")
                 print(f"  only in user data: {sorted(set(merged_data.columns) - set(training_data.columns))}")
@@ -183,10 +227,10 @@ def train(args):
     
     merged_data = encode_features(merged_data)
 
-    X_train, X_test, y_train, y_test = train_test_split(merged_data, targets, test_size=0.2)
+    X_train, X_test, y_train, y_test = train_test_split(merged_data, targets, test_size=0.2, random_state=args.seed)
 
     print("Starting training (Naive model)")
-    model = XGBClassifier()
+    model = XGBClassifier(random_state=args.seed)
     model.fit(X_train, y_train)
     
     y_pred = model.predict(X_test)
@@ -196,14 +240,15 @@ def train(args):
     
     if args.hyperparameters:
         print("Using manual hyperparameters")
-        X_train, X_test, y_train, y_test = train_test_split(merged_data, targets, test_size=0.2, stratify=targets)
+        X_train, X_test, y_train, y_test = train_test_split(merged_data, targets, test_size=0.2, stratify=targets,
+                                                            random_state=args.seed)
         classes_weights = class_weight.compute_sample_weight(class_weight='balanced', y=y_train)
         try:
             config = load_xgboost_hyperparameters(args.hyperparameters)
         except ValueError as e:
             print(f"Error: {e}")
             sys.exit(1)
-        best_model = XGBClassifier(**config)
+        best_model = XGBClassifier(**config, random_state=args.seed)
         best_model.fit(X_train, y_train, sample_weight=classes_weights)
         y_pred = best_model.predict(X_test)
         accuracy = accuracy_score(y_test, y_pred)
@@ -219,17 +264,20 @@ def train(args):
         #----raytune hyperparameter tuning
         print("Starting hyperparameter tuning")
         from ray import tune, train
-        from ray.tune.search.optuna import OptunaSearch
         from ray.tune.schedulers import ASHAScheduler
-        
+
+        seed = args.seed
+
         def model_training(config):
             weighted_f1_scores = []
             accuracies = []
             macro_f1_scores = []
             for i in range(10):
-                X_train, X_test, y_train, y_test = train_test_split(merged_data, targets, test_size=0.2, stratify=targets)
+                # Every configuration is scored on the same ten splits
+                X_train, X_test, y_train, y_test = train_test_split(merged_data, targets, test_size=0.2, stratify=targets,
+                                                                    random_state=seed + i)
                 classes_weights = class_weight.compute_sample_weight(class_weight='balanced', y=y_train)
-                model = XGBClassifier(**config)
+                model = XGBClassifier(**config, random_state=seed)
                 model.fit(X_train, y_train, sample_weight=classes_weights)
                 y_pred = model.predict(X_test)
                 accuracy = accuracy_score(y_test, y_pred)
@@ -253,30 +301,14 @@ def train(args):
                         "std_macro_f1_score" : stds_macro_f1_score,
                         'done': True})
 
-        config = {
-            "objective": "multi:softprob",
-            "max_depth": tune.randint(1, 6),
-            "min_child_weight": tune.choice([1, 2, 3, 4]),
-            "subsample": tune.uniform(0.5, 1.0),
-            "eta": tune.loguniform(1e-4, 1e-1),
-            "n_estimators": tune.randint(100, 1000),
-            "gamma": tune.uniform(0, 1),
-            "base_score": tune.uniform(0.33, 0.66),
-            "alpha" : tune.loguniform(1e-3, 10),
-            "lambda" : tune.loguniform(1e-3, 1),
-            "colsample_bytree" : tune.uniform(0.8, 1),
-            "colsample_bylevel" : tune.uniform(0.8, 1),
-            "colsample_bynode" : tune.uniform(0.8, 1),
-        }
-
         tuner = tune.Tuner(
             model_training, 
             tune_config = tune.TuneConfig(num_samples = args.tuning_rounds, 
-                                        search_alg = OptunaSearch(), 
+                                        search_alg = tuning_search_alg(seed), 
                                         scheduler = ASHAScheduler(),
                                         metric = "weighted_f1_score", 
                                         mode = "max"), 
-            param_space = config
+            param_space = tuning_search_space()
         )
 
         results = tuner.fit()
@@ -297,11 +329,12 @@ def train(args):
                         if key in ("mean_accuracy", "std_accuracy", "weighted_f1_score", "std_weighted_f1_score",
                                    "macro_f1_score", "std_macro_f1_score")})
         metrics["accuracy"] = metrics["mean_accuracy"]
-        best_model = XGBClassifier(**best_result.config)
+        best_model = XGBClassifier(**best_result.config, random_state=seed)
         best_model.fit(X_train, y_train)
 
     run_config = {
         "hyperparameters": {key: (value.item() if hasattr(value, "item") else value) for key, value in config.items()},
+        "seed": args.seed,
         "arguments": vars(args),
         "training_data": None if args.no_db_data else data_path,
         "n_rows": n_rows,
