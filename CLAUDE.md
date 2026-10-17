@@ -6,20 +6,37 @@ XGBoost post-filter for miRDeep2. It labels each novel pre-miRNA candidate Candi
 
 We are revising the code in response to a mock peer review. The work list, with file/line references, open questions and acceptance tests, is in `review/REVISIONS.md`. Read it before starting any task. Put the item ID (A1, B2, ...) in branch names and commit messages. REVISIONS.md line numbers refer to commit 133bf14; the code has moved since, so search for the quoted code.
 
-### Status (16 Oct 2026)
+### Status (end of session, 16 Oct 2026)
 
-- Done and merged: A1 (fixed flag/label encoding), A2 (training writes to a run folder), A3 (no `eval()` on hyperparameter files), A5 (visualize trees), A4 (`alt_model_test.py` fixed in place, not retired: tunes and saves SVM/KNN/MLP on the same data as `AutoDeep train`), A6 (seeds: `AutoDeep train --seed`, default 42, saved in config.json), A7 (CI on Linux and macOS, `AutoDeep.yml` as the one requirements list, miRDeep2 tutorial example). Phase A is complete.
-- In progress: B1. The PDF-parity part is merged (features from `output.mrd` equal the pypdf values); B1's own acceptance test (per-arm read counts vs `result.csv`) is still to do.
+- Phase A is complete; all merged into `refactoring`:
+  - A1: fixed flag/label encoding
+  - A2: training writes to a run folder
+  - A3: no `eval()` on hyperparameter files
+  - A4: `alt_model_test.py` fixed in place, not retired (Tejus's decision); trains SVM/KNN/MLP on the same data as `AutoDeep train`
+  - A5: visualize trees
+  - A6: `--seed`, default 42
+  - A7: CI on Linux and macOS, `AutoDeep.yml` as the one requirements list, miRDeep2 tutorial example
+- In progress: B1. The PDF-parity part is merged (features from `output.mrd` equal the pypdf values). B1's own acceptance test (per-arm read counts from `output.mrd` vs mature/star/loop counts in `result.csv`) is still to do. It can now use `examples/mirdeep2_tutorial/`.
 - Also merged, outside REVISIONS: portable conda env for osx-arm64; training reads `training_data_pre/`.
-- Next: B1's acceptance test (per-arm read counts vs `result.csv`) on the tutorial example; the rest of Phase B waits on Q1-Q9.
-- Table 2 (SVM/KNN/MLP vs XGBoost) must be regenerated with the fixed `alt_model_test.py`; Tejus to fill in the A4 old Methods text in `review/METHODS_CHANGES.md`.
+- Next session: ask Tejus where to start. Options: B1's acceptance test (needs no answers), or Phase B items once he has answered Q1-Q9. Tejus did not want to start either at the end of this session.
+- CI (`.github/workflows/tests.yml`) is green: on PR #9 (81 passed, 3 skipped, the Pomonella tests, on ubuntu-latest and macos-latest) and on `refactoring` after the merge. It runs on every push and PR to `refactoring` and `main`; check it with `gh pr checks <n>` before handing a PR over.
+
+### Waiting on Tejus (not code)
+
+- Regenerate Table 2 (SVM/KNN/MLP vs XGBoost) with the fixed `alt_model_test.py`; the old script trained on `training_data/` and never saved a usable model.
+- `review/METHODS_CHANGES.md`: old Methods text for A4; hardware for the A6 reproducibility statement once D1 has retrained the model.
+- Answers to Q1-Q9 in `review/REVISIONS.md`.
+
+### Working notes
+
 - Tuning runs as many trials at once as Ray allows (Tejus's choice: speed). Up to 10 tuning rounds repeat on any machine; beyond 10, results depend on the CPU count. Do not add a concurrency limiter.
+- To show a bug in code that writes inside `AutoDeep/` (as the old `alt_model_test.py` did), run it on a copy of the repo in the scratchpad, never in place.
+- After a PR merges: confirm with `gh pr view <n>`, check `git log origin/refactoring..<branch>` is empty before `git branch -d`, mark `[x]`, update this file, push.
 
 ### Open decisions (ask Tejus; do not decide)
 
-- Q1-Q9 in REVISIONS.md are unanswered; B2-B8 and C1/C3/C5 depend on them.
+- Q1-Q9 in REVISIONS.md are unanswered; B2-B8 and C1/C3/C5 depend on them. Q1 (seed homology: labelling criterion or feature) affects the most items.
 - Feature set: since B1 the pipeline produces the shipped model's features (`five_prime_process_signal_...`, `num_locis`). The entropy features in `training_data/` are computed by functions kept in `folding_properties.py` but not written out.
-- `review/METHODS_CHANGES.md` A6: Tejus adds the training hardware (CPU, cores, OS, versions) to the reproducibility statement once D1 has retrained the model.
 
 ### Known issues not yet in REVISIONS.md
 
@@ -27,6 +44,7 @@ We are revising the code in response to a mock peer review. The work list, with 
 - If `AutoDeep train` fails partway, the run folder is left behind.
 - `AutoDeep infer ... --model missing.json` only fails at the last step, after the whole pipeline has run.
 - `AutoDeep infer --help` names the output `AutoDeep_results.csv`; the file is `xgboost_judgement.csv`.
+- The README's test badge shows the `refactoring` branch; point it at `main` at release (D2).
 
 ## Layout
 
@@ -54,7 +72,7 @@ We are revising the code in response to a mock peer review. The work list, with 
 - On Tejus's Mac the env is not activated in Claude's shell: call `/Users/tkoti/miniconda3/envs/AutoDeep/bin/python` directly, and put that `bin/` on PATH when running `AutoDeep.sh` (RNAfold and graphviz's `dot` live there).
 - Tests: `PYTHONDONTWRITEBYTECODE=1 python -m pytest tests` from the repo root. Set `AUTODEEP_TEST_RUN` to the local Pomonella test run (path in CLAUDE.local.md) to include the end-to-end tests; without it they are skipped (as in CI).
 - A separate conda env `mirdeep2` (miRDeep2 2.0.1.3 from bioconda) is on Tejus's Mac, used to make the tutorial example; see `examples/mirdeep2_tutorial/README.md`.
-- Reanalysis on this Mac differs slightly from `reanalysis_baseline.txt` in the XGBoost rows only (arm64 vs x86 arithmetic; run-to-run identical). Compare later runs with `review/reanalysis_osx-arm64.txt`.
+- Reanalysis on this Mac differs slightly from `reanalysis_baseline.txt` in the XGBoost rows only (by up to 0.01; run-to-run identical). The baseline ran on x86 with NumPy 2.x, so both architecture and library versions differ. Compare later runs with `review/reanalysis_osx-arm64.txt`.
 - Machine-specific paths, such as the miRDeep2 run directories behind each training CSV, are in CLAUDE.local.md
 
 ## Git workflow
