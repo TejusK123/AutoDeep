@@ -6,7 +6,7 @@ XGBoost post-filter for miRDeep2. It labels each novel pre-miRNA candidate Candi
 
 We are revising the code in response to a mock peer review. The work list, with file/line references, open questions and acceptance tests, is in `review/REVISIONS.md`. Read it before starting any task. Put the item ID (A1, B2, ...) in branch names and commit messages. REVISIONS.md line numbers refer to commit 133bf14; the code has moved since, so search for the quoted code.
 
-### Status (end of session, 16 Oct 2026)
+### Status (16 Oct 2026, after B1)
 
 - Phase A is complete; all merged into `refactoring`:
   - A1: fixed flag/label encoding
@@ -16,10 +16,10 @@ We are revising the code in response to a mock peer review. The work list, with 
   - A5: visualize trees
   - A6: `--seed`, default 42
   - A7: CI on Linux and macOS, `AutoDeep.yml` as the one requirements list, miRDeep2 tutorial example
-- In progress: B1. The PDF-parity part is merged (features from `output.mrd` equal the pypdf values). B1's own acceptance test (per-arm read counts from `output.mrd` vs mature/star/loop counts in `result.csv`) is still to do. It can now use `examples/mirdeep2_tutorial/`.
+- B1 is complete (PRs #2 and #10): the 5' features come from `output.mrd` and equal the pypdf values, and `arm_counts` reproduces miRDeep2's mature/star/loop counts in `result.csv` (tutorial: 8 loci; Pomonella: 212).
 - Also merged, outside REVISIONS: portable conda env for osx-arm64; training reads `training_data_pre/`.
-- Next session: ask Tejus where to start. Options: B1's acceptance test (needs no answers), or Phase B items once he has answered Q1-Q9. Tejus did not want to start either at the end of this session.
-- CI (`.github/workflows/tests.yml`) is green: on PR #9 (81 passed, 3 skipped, the Pomonella tests, on ubuntu-latest and macos-latest) and on `refactoring` after the merge. It runs on every push and PR to `refactoring` and `main`; check it with `gh pr checks <n>` before handing a PR over.
+- Next session: ask Tejus where to start. B2-B8 all wait on answers to Q1-Q9 (B2 on Q2, the 5'-homogeneity denominator; `arm_counts` supports its mature-arm option).
+- CI (`.github/workflows/tests.yml`) is green: on PR #10 (89 passed, 4 skipped, the Pomonella tests, on ubuntu-latest and macos-latest) and on `refactoring` after the merge (77b3387). It runs on every push and PR to `refactoring` and `main`; check it with `gh pr checks <n>` before handing a PR over.
 
 ### Waiting on Tejus (not code)
 
