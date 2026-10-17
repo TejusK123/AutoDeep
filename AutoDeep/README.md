@@ -6,19 +6,24 @@ AutoDeep is a machine learning tool that stratifies mirDeep2 outputs into Candid
 
 ### Prerequisites
 
-- Python 3.6 or higher
-- pandas (`pip install pandas`)
-- ViennaRNA (for RNAfold command)
+- Linux (x86-64) or macOS (Apple silicon)
+- Conda
 
 ### Quick Start
 
 1. **Clone the repository:**
    ```bash
-   git clone <repository-url>
-   cd AutoDeep
+   git clone https://github.com/TejusK123/AutoDeep.git
+   cd AutoDeep/AutoDeep
    ```
 
-2. **Add to PATH:**
+2. **Create and activate the conda environment** (see [Dependencies](#dependencies)):
+   ```bash
+   conda env create -f AutoDeep.yml
+   conda activate AutoDeep
+   ```
+
+3. **Add to PATH:**
    ```bash
    export PATH="$PATH:$(pwd)"
    ```
@@ -28,7 +33,7 @@ AutoDeep is a machine learning tool that stratifies mirDeep2 outputs into Candid
    export PATH="$PATH:/path/to/AutoDeep"
    ```
 
-3. **Verify installation:**
+4. **Verify installation:**
    ```bash
    AutoDeep --help
    ```
@@ -80,21 +85,14 @@ AutoDeep visualize --help
 
 ## Dependencies
 
-The project requires:
-- Python 3.6+
-- pandas
-- ViennaRNA (RNAfold)
-
-Install Python dependencies:
-```bash
-pip install pandas
-```
+All dependencies are listed in `AutoDeep.yml`: Python 3.9, pandas, numpy, scikit-learn, XGBoost, Ray Tune and Optuna (training), ViennaRNA (the `RNAfold` command), graphviz (tree plots) and their versions. Some are command-line programs that pip cannot install, so use conda. `AutoDeep.linux-64.lock.yml` is the exact Linux environment the bundled model was trained in.
 
 ## Project Structure
 
 ```
 AutoDeep/
 ├── AutoDeep                      # Main executable
+├── AutoDeep.yml                  # Conda environment (all dependencies)
 ├── scripts/
 │   ├── AutoDeep.sh              # Core logic dispatcher
 │   ├── init_data.py             # Data initialization
@@ -115,4 +113,4 @@ AutoDeep/
 
 ## License
 
-See LICENSE file for details.
+GNU General Public License v3.0; see the LICENSE file.

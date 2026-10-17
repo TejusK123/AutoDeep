@@ -73,4 +73,4 @@ We are revising the code in response to a mock peer review. The work list, with 
   and report how the numbers moved relative to `review/reanalysis_baseline.txt`.
 - When a change alters behaviour the paper describes, add the Methods sentence that must change to `review/METHODS_CHANGES.md` (old text, new text, item ID).
 - Mark items `[~]` when started and `[x]` when merged in REVISIONS.md.
-- Keep the GPL-3.0 license. Do not commit raw sequencing data or miRDeep2 run directories.
+- Keep the GPL-3.0 license. Do not commit raw sequencing data or miRDeep2 run directories. One exception (Tejus, 16 Oct 2026, A7): `examples/mirdeep2_tutorial/mirdeep2_output/` holds `result_*.csv` and `output.mrd` from miRDeep2's public tutorial run.

@@ -1,0 +1,42 @@
+# Runs the test suite in a fresh environment built from AutoDeep/AutoDeep.yml,
+# on both supported platforms. The end-to-end tests on the local Pomonella run
+# are skipped here (AUTODEEP_TEST_RUN is unset); the miRDeep2 tutorial example
+# in examples/ runs instead.
+name: tests
+
+on:
+  push:
+    branches: [main, refactoring]
+  pull_request:
+    branches: [main, refactoring]
+  workflow_dispatch:
+
+jobs:
+  pytest:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]  # linux-64 and osx-arm64
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    defaults:
+      run:
+        shell: bash -el {0}  # login shell, so the conda environment is active
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: mamba-org/setup-micromamba@v2
+        with:
+          environment-file: AutoDeep/AutoDeep.yml
+          cache-environment: true
+
+      - name: Show versions
+        run: |
+          python --version
+          RNAfold --version
+          python -c "import xgboost, sklearn, pandas, numpy; print('xgboost', xgboost.__version__, 'scikit-learn', sklearn.__version__, 'pandas', pandas.__version__, 'numpy', numpy.__version__)"
+
+      - name: Run tests
+        env:
+          PYTHONDONTWRITEBYTECODE: "1"
+        run: python -m pytest tests -v
