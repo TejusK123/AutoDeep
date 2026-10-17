@@ -2,6 +2,11 @@ import argparse
 import sys
 import os
 
+# training_data_pre/ has the features the pipeline produces and the shipped
+# model was trained on; training_data/ holds the newer entropy features.
+# alt_model_test.py trains on the same data.
+TRAINING_DATA = os.path.join(os.path.dirname(os.path.dirname(os.path.realpath(__file__))), "training_data_pre")
+
 
 def main():
     parser = argparse.ArgumentParser(
@@ -117,6 +122,60 @@ def read_training_data(data_path):
     return pd.concat(dfs, ignore_index=True) if dfs else None
 
 
+def load_training_set(targets_paths, no_db_data, out_dir):
+    """Encoded features and labels to train on: the bundled training data (unless
+    no_db_data) plus the labelled loci in targets_paths, which are also saved to
+    out_dir/user_data.csv. Returns (features, labels, {"n_rows", "class_counts"}).
+    Raises ValueError if the user data and the training data have different columns."""
+    import pandas as pd
+    from features import LABELS, LABEL_COLUMN, encode_features, encode_labels
+
+    # Loading all database data
+    training_data = None if no_db_data else read_training_data(TRAINING_DATA)
+    if training_data is not None:
+        print(training_data.shape, "Shape of database data")
+
+    if targets_paths is not None:
+        user_frames = []
+        for path in targets_paths:
+            targets_df = pd.read_csv(path)
+            if targets_df.shape[1] > 2:
+                # user_data.csv from an earlier run: features and labels already joined
+                frame = targets_df
+            else:
+                data = pd.read_csv("fully_formatted_data.csv")
+                frame = pd.merge(data, targets_df, on='provisional_id')
+            user_frames.append(frame.rename(columns={frame.columns[-1]: LABEL_COLUMN}))
+        merged_data = pd.concat(user_frames, ignore_index=True)
+        merged_data = merged_data[merged_data[LABEL_COLUMN].isin(LABELS)] #Filter out any other classes
+        print(f"input data shape before merging with database data: {merged_data.shape}")
+
+        # Save the user data with the run, so it can be passed to -t again later
+        merged_data.to_csv(os.path.join(out_dir, "user_data.csv"), index=False)
+
+        if training_data is not None:
+            if list(training_data.columns) != list(merged_data.columns):
+                raise ValueError(
+                    "user data columns do not match the training data columns\n"
+                    f"  only in user data: {sorted(set(merged_data.columns) - set(training_data.columns))}\n"
+                    f"  only in training data: {sorted(set(training_data.columns) - set(merged_data.columns))}")
+            merged_data = pd.concat([training_data, merged_data], ignore_index=True)
+
+        print(merged_data.shape, "after merging with database data")
+
+    else:
+        merged_data = training_data
+
+    merged_data.drop_duplicates(inplace=True)
+    print(merged_data.shape, "After dropping duplicates")
+    #Preprocessing
+    info = {"n_rows": int(merged_data.shape[0]),
+            "class_counts": {str(k): int(v) for k, v in merged_data.iloc[:,-1].value_counts().items()}}
+    targets = encode_labels(merged_data.iloc[:,-1])
+    features = encode_features(merged_data.iloc[:,1:-1])
+    return features, targets, info
+
+
 def tuning_search_space():
     """Ray Tune search space for the XGBoost hyperparameters."""
     from ray import tune
@@ -149,7 +208,6 @@ def tuning_search_alg(seed):
 
 
 def train(args):
-    import pandas as pd 
     import xgboost as xgb
     from xgboost import XGBClassifier
     import numpy as np
@@ -158,16 +216,12 @@ def train(args):
     from sklearn.utils import class_weight
     import json
     import time
-    from features import LABELS, LABEL_COLUMN, encode_features, encode_labels
     from hyperparameters import load_xgboost_hyperparameters
 
     
-    # Loading all relevant paths. Training reads the package's training data
-    # but writes only to out_dir, never inside the package.
-    base_path = os.path.split(os.path.dirname(os.path.realpath(__file__)))[0]
-    # training_data_pre/ has the features the pipeline produces and the shipped
-    # model was trained on; training_data/ holds the newer entropy features
-    data_path = os.path.join(base_path, "training_data_pre")
+    # Training reads the package's training data but writes only to out_dir,
+    # never inside the package.
+    data_path = TRAINING_DATA
     current_dir = os.getcwd()
 
     if "AutoDeepRun" not in os.path.basename(current_dir):
@@ -181,51 +235,12 @@ def train(args):
     os.makedirs(out_dir)
     print(f"Writing outputs to: {os.path.abspath(out_dir)}")
     
-    # Loading all database data
-    training_data = None if args.no_db_data else read_training_data(data_path)
-    if training_data is not None:
-        print(training_data.shape, "Shape of database data")
-
-    if args.targets_path is not None:
-        user_frames = []
-        for path in args.targets_path:
-            targets_df = pd.read_csv(path)
-            if targets_df.shape[1] > 2:
-                # user_data.csv from an earlier run: features and labels already joined
-                frame = targets_df
-            else:
-                data = pd.read_csv("fully_formatted_data.csv")
-                frame = pd.merge(data, targets_df, on='provisional_id')
-            user_frames.append(frame.rename(columns={frame.columns[-1]: LABEL_COLUMN}))
-        merged_data = pd.concat(user_frames, ignore_index=True)
-        merged_data = merged_data[merged_data[LABEL_COLUMN].isin(LABELS)] #Filter out any other classes
-        print(f"input data shape before merging with database data: {merged_data.shape}")
-
-        # Save the user data with the run, so it can be passed to -t again later
-        merged_data.to_csv(os.path.join(out_dir, "user_data.csv"), index=False)
-
-        if training_data is not None:
-            if list(training_data.columns) != list(merged_data.columns):
-                print("Error: user data columns do not match the training data columns")
-                print(f"  only in user data: {sorted(set(merged_data.columns) - set(training_data.columns))}")
-                print(f"  only in training data: {sorted(set(training_data.columns) - set(merged_data.columns))}")
-                sys.exit(1)
-            merged_data = pd.concat([training_data, merged_data], ignore_index=True)
-
-        print(merged_data.shape, "after merging with database data")
-
-    else:
-        merged_data = training_data
-    
-    merged_data.drop_duplicates(inplace=True)
-    print(merged_data.shape, "After dropping duplicates")
-    #Preprocessing
-    n_rows = int(merged_data.shape[0])
-    class_counts = {str(k): int(v) for k, v in merged_data.iloc[:,-1].value_counts().items()}
-    targets = encode_labels(merged_data.iloc[:,-1])
-    merged_data = merged_data.iloc[:,1:-1]
-    
-    merged_data = encode_features(merged_data)
+    try:
+        merged_data, targets, data_info = load_training_set(args.targets_path, args.no_db_data, out_dir)
+    except ValueError as e:
+        print(f"Error: {e}")
+        sys.exit(1)
+    n_rows, class_counts = data_info["n_rows"], data_info["class_counts"]
 
     X_train, X_test, y_train, y_test = train_test_split(merged_data, targets, test_size=0.2, random_state=args.seed)
 

@@ -17,3 +17,10 @@ Sentences in the manuscript's Methods that must change because the code changed.
   - XGBoost's results differ slightly between machines. The reviewer's baseline (`review/reanalysis_baseline.txt`, x86, NumPy 2.x) and this Mac (`review/reanalysis_osx-arm64.txt`, Apple M4, NumPy 1.23.5) differ by up to 0.01 in the XGBoost metrics.
   - Suggested wording, once D1 has retrained the model: "The released model was trained with seed 42 on an Apple M4 (10 cores) running macOS 26.3, with the software versions listed in AutoDeep.yml. Tuning with more than ten trials can select different hyperparameters on machines with a different number of cores." Check the machine and versions against the final training run.
 - **Note:** the shipped model was trained before this change, without seeds. D1 retrains it and records its seed.
+
+## A4. Comparison models (SVM, KNN, MLP) train on the XGBoost data
+
+- **Old text:** TODO (Tejus): paste the sentence that describes how the SVM, k-nearest-neighbour and multilayer-perceptron models in Table 2 were trained and tuned, or write "none".
+- **New text:** "For comparison, support vector machine, k-nearest-neighbour and multilayer perceptron classifiers (scikit-learn 1.5.1) were trained on the same 2,907 loci and 18 features as the XGBoost model, after mean imputation and standardisation, and tuned in the same way (Ray Tune with Optuna's TPE sampler, scored by mean weighted F1 over the same ten stratified 80/20 splits, seed 42)."
+- **Note:** Table 2 must be regenerated with the fixed script. Before A4 the script trained on `training_data/` (3,180 loci, with the entropy 5' features in place of 5' homogeneity and the number of distinct reads), its tuning crashed before saving, and it never saved a usable model. Check which data and code produced the current Table 2.
+- **Note:** class weighting still differs between models: XGBoost (sample weights) and SVM (`class_weight='balanced'`) weight the classes equally; KNN and MLP do not. Equal treatment of all models is part of C1.
