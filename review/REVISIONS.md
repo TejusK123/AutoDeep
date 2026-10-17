@@ -49,7 +49,7 @@ Write each answer under its question. Claude Code: if an item depends on an unan
 - [x] **A3. `eval()` on the hyperparameter file.** `boosted_forest_training.py` L154 and `alt_model_test.py` L169.
   Fix: JSON or YAML, validated against the allowed keys (already listed at L147).
   Test: a file containing `__import__('os')` is rejected.
-- [~] **A4. `alt_model_test.py` cannot run end to end.** In the tuning branch, L413-481 use an undefined `config` (UnboundLocalError at L422) and assume SVM parameters for every model; L495 saves the model-type string, not the fitted pipeline; the `xgboost` branch is unreachable (click choices, L21).
+- [x] **A4. `alt_model_test.py` cannot run end to end.** In the tuning branch, L413-481 use an undefined `config` (UnboundLocalError at L422) and assume SVM parameters for every model; L495 saves the model-type string, not the fitted pipeline; the `xgboost` branch is unreachable (click choices, L21).
   Fix (Tejus, 16 Oct 2026: fix in place rather than retire): tune and save the requested model; write only to a run folder; train on `training_data_pre/` through the same loader as `AutoDeep train`; seed as in A6. The models move into the evaluation harness at C1.
   Test: tuning runs end to end for svm, knn and mlp and saves a fitted pipeline of that type; the package is unchanged; the bundled data plus the Pomonella labels give the same 2,907 rows as `AutoDeep train`.
 - [x] **A5. `AutoDeep visualize` loop.** `boosted_forest_visualization.py` L46-54 iterates `num_boosted_rounds()` over a dump holding 3 x rounds trees, and re-dumps the model on every iteration.
