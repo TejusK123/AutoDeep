@@ -1,4 +1,7 @@
 # AutoDeep 'README'
+
+[![tests](https://github.com/TejusK123/AutoDeep/actions/workflows/tests.yml/badge.svg?branch=refactoring)](https://github.com/TejusK123/AutoDeep/actions/workflows/tests.yml)
+
 ## About
 
 Authors: Manitejus Kotikalapudi
@@ -23,6 +26,18 @@ export PATH="$PATH:$(pwd)/AutoDeep"
 ```
 
 `AutoDeep/AutoDeep.linux-64.lock.yml` is the exact Linux environment the shipped model was trained in.
+
+## Example
+
+`examples/mirdeep2_tutorial/` holds the output of miRDeep2's own tutorial run and the AutoDeep output expected for it. To try AutoDeep on it (copy the folder first: AutoDeep rewrites `result_*.csv` in place):
+
+```sh
+cp -r examples/mirdeep2_tutorial/mirdeep2_output /tmp/tutorial_run
+AutoDeep infer /tmp/tutorial_run
+diff AutoDeepRun/xgboost_judgement.csv examples/mirdeep2_tutorial/expected/xgboost_judgement.csv
+```
+
+See `examples/mirdeep2_tutorial/README.md` for how the miRDeep2 output was made.
 
 ## Script Reference
 
@@ -79,6 +94,8 @@ In `--out_dir` (default `AutoDeepRun/models/<timestamp>/`):
                                 case of manual tuning: "name value" lines,
                                 a JSON object, or config.json from an earlier
                                 run (see AutoDeep train --help)
+ * --seed <int>                  Random seed for data splits, XGBoost and tuning:
+                                Default <42>, saved in config.json
  * --help                        Show this message and exit.
 ### AutoDeep visualize
 
