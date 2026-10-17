@@ -57,7 +57,7 @@ Write each answer under its question. Claude Code: if an item depends on an unan
 - [x] **A6. Determinism.** No seeds in `train_test_split`, XGBoost or Optuna.
   Fix: a `--seed` option threaded through splits, `random_state` and `OptunaSearch(sampler=optuna.samplers.TPESampler(seed=...))`.
   Test: two runs with the same seed give identical metrics.
-- [~] **A7. Packaging and tests.** `setup.py` has a placeholder author and URL and an MIT classifier, but LICENSE is GPL-3.0; `requirements.txt` lists only pandas; there are no tests or CI.
+- [x] **A7. Packaging and tests.** `setup.py` has a placeholder author and URL and an MIT classifier, but LICENSE is GPL-3.0; `requirements.txt` lists only pandas; there are no tests or CI.
   Fix: correct metadata, full requirements, `pytest` with GitHub Actions, and a small example (miRDeep2's tutorial output) with expected AutoDeep output.
   Note: `setup.py` was already deleted in 36d9492 (1 Mar 2026), after the reviewed commit. AutoDeep is installed with conda from `AutoDeep/AutoDeep.yml`, which lists every dependency, and run from PATH; `requirements.txt` (pandas only) is removed.
 
