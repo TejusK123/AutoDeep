@@ -8,10 +8,11 @@ We are revising the code in response to a mock peer review. The work list, with 
 
 ### Status (16 Oct 2026)
 
-- Done and merged: A1 (fixed flag/label encoding), A2 (training writes to a run folder), A3 (no `eval()` on hyperparameter files), A5 (visualize trees).
+- Done and merged: A1 (fixed flag/label encoding), A2 (training writes to a run folder), A3 (no `eval()` on hyperparameter files), A5 (visualize trees), A6 (seeds: `AutoDeep train --seed`, default 42, saved in config.json).
 - In progress: B1. The PDF-parity part is merged (features from `output.mrd` equal the pypdf values); B1's own acceptance test (per-arm read counts vs `result.csv`) is still to do.
 - Also merged, outside REVISIONS: portable conda env for osx-arm64; training reads `training_data_pre/`.
-- Next: A6 (seeds), then A7. A4 is on hold (see open decisions).
+- Next: A7. A4 is on hold (see open decisions).
+- Tuning runs as many trials at once as Ray allows (Tejus's choice: speed). Up to 10 tuning rounds repeat on any machine; beyond 10, results depend on the CPU count. Do not add a concurrency limiter.
 
 ### Open decisions (ask Tejus; do not decide)
 
@@ -19,6 +20,7 @@ We are revising the code in response to a mock peer review. The work list, with 
 - Q1-Q9 in REVISIONS.md are unanswered; B2-B8 and C1/C3/C5 depend on them.
 - Feature set: since B1 the pipeline produces the shipped model's features (`five_prime_process_signal_...`, `num_locis`). The entropy features in `training_data/` are computed by functions kept in `folding_properties.py` but not written out.
 - `review/METHODS_CHANGES.md` B1 entry needs the current Methods sentence pasted in (TODO).
+- `review/METHODS_CHANGES.md` A6: Tejus adds the training hardware (CPU, cores, OS, versions) to the reproducibility statement once D1 has retrained the model.
 
 ### Known issues not yet in REVISIONS.md
 
@@ -35,7 +37,7 @@ We are revising the code in response to a mock peer review. The work list, with 
 - `AutoDeep/scripts/mrd.py`: parses miRDeep2's `output.mrd` and computes 5' homogeneity and `num_locis` (B1)
 - `AutoDeep/scripts/hyperparameters.py`: reads `-hp` files (text "name value", JSON, or a run's config.json) without running code (A3)
 - `AutoDeep/scripts/boosted_forest_inference.py`: selects the model's features by name; `--model PATH` (default: bundled model)
-- `AutoDeep/scripts/boosted_forest_training.py`: `AutoDeep train` (Ray Tune + OptunaSearch). Writes only to `--out_dir` (default `AutoDeepRun/models/<timestamp>/`): miRNA_model.json, config.json, metrics.json, user_data.csv, tuning log. `-t` takes several files
+- `AutoDeep/scripts/boosted_forest_training.py`: `AutoDeep train` (Ray Tune + OptunaSearch). Writes only to `--out_dir` (default `AutoDeepRun/models/<timestamp>/`): miRNA_model.json, config.json, metrics.json, user_data.csv, tuning log. `-t` takes several files; `--seed` (default 42) seeds splits, XGBoost and the Optuna sampler
 - `AutoDeep/scripts/boosted_forest_visualization.py`: `AutoDeep visualize`; tree plots only with `--trees N|all`; `--model PATH`
 - `AutoDeep/scripts/alt_model_test.py`: SVM/KNN/MLP comparison for Table 2 (fate undecided, item A4)
 - `AutoDeep/training_data_pre/`: 2,907 labelled loci in 11 CSVs from 8 species; the shipped model's training data, read by `AutoDeep train`
@@ -43,7 +45,7 @@ We are revising the code in response to a mock peer review. The work list, with 
 - `AutoDeep/model_weights/miRNA_model.json`: shipped model (XGBoost 2.1.1, 983 rounds x 3 classes, depth 5)
 - `AutoDeep/AutoDeep.yml`: portable conda spec; `AutoDeep/AutoDeep.linux-64.lock.yml`: exact Linux env the shipped model was trained in
 - `review/`: REVISIONS.md, reanalysis.py (reviewer's evaluation script), reanalysis_baseline.txt (its output on commit 133bf14), reanalysis_osx-arm64.txt (its output on Tejus's Mac), METHODS_CHANGES.md
-- `tests/`: pytest suite (63 tests); `conftest.py` puts `AutoDeep/scripts` on the import path
+- `tests/`: pytest suite (72 tests); `conftest.py` puts `AutoDeep/scripts` on the import path
 
 ## Environment
 

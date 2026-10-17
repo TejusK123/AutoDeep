@@ -53,7 +53,7 @@ Write each answer under its question. Claude Code: if an item depends on an unan
   Fix: retire the script; its models move into the evaluation harness (C1).
 - [x] **A5. `AutoDeep visualize` loop.** `boosted_forest_visualization.py` L46-54 iterates `num_boosted_rounds()` over a dump holding 3 x rounds trees, and re-dumps the model on every iteration.
   Fix: dump once; label each tree by round and class (`tree_info`); make tree export opt-in. SHAP plots (C4) become the default output.
-- [~] **A6. Determinism.** No seeds in `train_test_split`, XGBoost or Optuna.
+- [x] **A6. Determinism.** No seeds in `train_test_split`, XGBoost or Optuna.
   Fix: a `--seed` option threaded through splits, `random_state` and `OptunaSearch(sampler=optuna.samplers.TPESampler(seed=...))`.
   Test: two runs with the same seed give identical metrics.
 - [ ] **A7. Packaging and tests.** `setup.py` has a placeholder author and URL and an MIT classifier, but LICENSE is GPL-3.0; `requirements.txt` lists only pandas; there are no tests or CI.
