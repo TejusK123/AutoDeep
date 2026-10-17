@@ -19,7 +19,6 @@ We are revising the code in response to a mock peer review. The work list, with 
 - A4: Tejus wants to keep using `alt_model_test.py` for SVM/KNN/MLP, but REVISIONS.md says retire it. Options: fix it in place (tuning branch crashes with UnboundLocalError and assumes SVM parameters; saving stores the model-type string and writes into the package) or retire it.
 - Q1-Q9 in REVISIONS.md are unanswered; B2-B8 and C1/C3/C5 depend on them.
 - Feature set: since B1 the pipeline produces the shipped model's features (`five_prime_process_signal_...`, `num_locis`). The entropy features in `training_data/` are computed by functions kept in `folding_properties.py` but not written out.
-- `review/METHODS_CHANGES.md` B1 entry needs the current Methods sentence pasted in (TODO).
 - `review/METHODS_CHANGES.md` A6: Tejus adds the training hardware (CPU, cores, OS, versions) to the reproducibility statement once D1 has retrained the model.
 
 ### Known issues not yet in REVISIONS.md
