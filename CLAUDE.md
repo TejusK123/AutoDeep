@@ -6,7 +6,7 @@ XGBoost post-filter for miRDeep2. It labels each novel pre-miRNA candidate Candi
 
 We are revising the code in response to a mock peer review. The work list, with file/line references, open questions and acceptance tests, is in `review/REVISIONS.md`. Read it before starting any task. Put the item ID (A1, B2, ...) in branch names and commit messages. REVISIONS.md line numbers refer to commit 133bf14; the code has moved since, so search for the quoted code.
 
-### Status (18 Oct 2026, B3 in review)
+### Status (18 Oct 2026, after B3)
 
 - Phase A is complete; all merged into `refactoring`:
   - A1: fixed flag/label encoding
@@ -17,10 +17,10 @@ We are revising the code in response to a mock peer review. The work list, with 
   - A6: `--seed`, default 42
   - A7: CI on Linux and macOS, `AutoDeep.yml` as the one requirements list, miRDeep2 tutorial example
 - B1 is complete (PRs #2 and #10): the 5' features come from `output.mrd` and equal the pypdf values, and `arm_counts` reproduces miRDeep2's mature/star/loop counts in `result.csv` (tutorial: 8 loci; Pomonella: 212).
-- B3 is in review (branch `b3-overhangs`, PR #11; CI green: 118 passed, 7 skipped on both platforms; 125 passed locally with the Pomonella run): Q3 answered. Signed 3' overhangs at the Drosha end ("Bot") and the Dicer end ("Top") by the duplex rule (Tejus's choice over miRDeep2's `find_star` rule: count from the terminal mature-star base pair, ignoring pairs with the flanks or loop), from the `obs` star and `pri_struct` in `output.mrd` (no refold: Tejus's choice, miRDeep2's ViennaRNA is current); blank without star reads. The reasons are in METHODS_CHANGES.md (B3, "For the paper"). The training CSVs keep the old unsigned values until B8. Until D1 retrains, the shipped model sees blanks it was never trained on: on Pomonella 29/212 labels change (28 Candidate and 1 Confident to falsepositive), all of them loci without star reads.
+- B3 is complete (PR #11): Q3 answered. Signed 3' overhangs at the Drosha end ("Bot") and the Dicer end ("Top") by the duplex rule (Tejus's choice over miRDeep2's `find_star` rule: count from the terminal mature-star base pair, ignoring pairs with the flanks or loop), from the `obs` star and `pri_struct` in `output.mrd` (no refold: Tejus's choice, miRDeep2's ViennaRNA is current); blank without star reads. The reasons are in METHODS_CHANGES.md (B3, "For the paper"). The training CSVs keep the old unsigned values until B8. Until D1 retrains, the shipped model sees blanks it was never trained on: on Pomonella 29/212 labels change (28 Candidate and 1 Confident to falsepositive), all of them loci without star reads.
 - Also merged, outside REVISIONS: portable conda env for osx-arm64; training reads `training_data_pre/`.
 - Next session: ask Tejus where to start. B2 and B4-B8 wait on answers to Q1, Q2 and Q4-Q9 (B2 on Q2, the 5'-homogeneity denominator; `arm_counts` supports its mature-arm option).
-- CI (`.github/workflows/tests.yml`) is green: on PR #10 (89 passed, 4 skipped, the Pomonella tests, on ubuntu-latest and macos-latest) and on `refactoring` after the merge (77b3387). It runs on every push and PR to `refactoring` and `main`; check it with `gh pr checks <n>` before handing a PR over.
+- CI (`.github/workflows/tests.yml`) is green: on PR #11 (123 passed, 7 skipped, the Pomonella tests, on ubuntu-latest and macos-latest; 130 passed locally with the Pomonella run) and on `refactoring` after the merge (412efc5). It runs on every push and PR to `refactoring` and `main`; check it with `gh pr checks <n>` before handing a PR over.
 
 ### Waiting on Tejus (not code)
 
@@ -28,6 +28,7 @@ We are revising the code in response to a mock peer review. The work list, with 
 - `review/METHODS_CHANGES.md`: old Methods text for A4 and B3 (overhang definitions, also in Table 1); hardware for the A6 reproducibility statement once D1 has retrained the model.
 - Answers to Q1, Q2 and Q4-Q9 in `review/REVISIONS.md`.
 - MirGeneDB's terms of use for the ten sequences in `tests/data/mirgenedb_hsa_ten.csv` (the site states no licence).
+- The `testfeatures` branch on GitHub (kept; not merged): one commit, 25ad41a (1 Mar 2025, "testing_features"), rewrites eight `training_data/original_data_*.csv` files and the model weights, and that content exists in no other branch. Possibly relevant to B8 (where the seven negative FAW "Bot" values came from). Keep, archive as a tag, or delete: Tejus to decide.
 
 ### Working notes
 
