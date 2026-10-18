@@ -13,7 +13,7 @@ Write each answer under its question. Claude Code: if an item depends on an unan
 - **Q2. 5'-homogeneity window.** Denominator = reads on the mature arm as marked by miRDeep2's `exp` string, or reads starting within +/- k nt of the dominant start (k = ?). Affects B2.
   Answer:
 - **Q3. Overhangs.** Signed 3' overhang at the Drosha end and at the Dicer end? Sign convention when the overhang is on the 5' side? Affects B3.
-  Answer:
+  Answer (Tejus, 18 Oct 2026): signed, one value per duplex end (Drosha end and Dicer end): positive is a 3' overhang (+2 canonical), 0 blunt, negative a 5' overhang. Use the observed star and the precursor structure miRDeep2 writes in output.mrd (no refold; miRDeep2's ViennaRNA is up to date). Measure each end from the terminal base pair between the mature and the star (the duplex rule), not from miRDeep2's expected star: pairs with the flanks or loop do not count, since Drosha and Dicer cut those off. Blank (missing) when a locus has no star reads, because miRDeep2's star is then its own prediction, which assumes 2-nt overhangs.
 - **Q4. Terminal-U flag.** 5'U only, or separate 5'U and 3'U features? The text says U/A at the ends of precursor, star and mature; the code checks U at either end of the mature only. Affects B4.
   Answer:
 - **Q5. miRDeep2 PPV columns.** `mirDeep_sensitivity` and `sensitivity_uncertainty` are miRDeep2's "estimated probability that the miRNA candidate is a true positive" and its SD, not sensitivity. They identify the species with 99% accuracy. Keep (renamed) or drop? Affects B5, C5.
@@ -70,9 +70,10 @@ Do B1 first and B8 last.
   Test: on miRDeep2's tutorial run, per-arm read counts from the parser equal the mature, star and loop counts in `result.csv`.
 - [ ] **B2. 5'-homogeneity denominator (Q2).** `folding_properties.py` L231, `tdf = selection_df[(selection_df['Position'] - max_position) <= 20]`, keeps every read that starts upstream of the dominant read. For 3p-arm miRNAs, star and loop reads therefore enter the denominator and bias the feature low. Also, L230's `top_loci` (sized by the PDF page count) feeds a feature that is never saved (L244), although the manuscript describes it.
   Test: adding star-arm reads to a synthetic 3p-dominant locus leaves homogeneity unchanged.
-- [ ] **B3. Overhang features (Q3).** L41-43 compute "Bot" as `abs(right - left)`, the difference between the unpaired 5' and 3' ends of the whole fold; L69-154 compute "Top" with a padding heuristic. Seven S. frugiperda training rows have negative "Bot" values, so those training features came from different code.
+- [~] **B3. Overhang features (Q3).** L41-43 compute "Bot" as `abs(right - left)`, the difference between the unpaired 5' and 3' ends of the whole fold; L69-154 compute "Top" with a padding heuristic. Seven S. frugiperda training rows have negative "Bot" values, so those training features came from different code.
   Fix: signed 3' overhangs at each duplex end from mature and star coordinates and the base-pair table, as miRDeep2 does (`miRDeep2_core_algorithm.pl`, `star_beg_exp` and `star_end_exp`).
-  Test: ten MirGeneDB precursors with documented 2-nt offsets give 2 at both ends.
+  Decision (Tejus, 18 Oct 2026): the duplex rule instead of miRDeep2's expected-star rule. At the Drosha end take the outermost base pair between the mature and the star, at the Dicer end the innermost, and count the unpaired nucleotides beyond it on each strand (3'-end strand minus 5'-end strand). The two rules differ on 10 of 148 Pomonella loci with star reads; reasons in `review/METHODS_CHANGES.md` (B3).
+  Test: ten MirGeneDB 3.0 human precursors chosen in advance give the overhangs their folds show: 2 at both ends for seven; Let-7-P2a1 (let-7a-1) and Mir-145 give 1 at the Drosha end, and Mir-21 gives 3 at the Dicer end (Tejus, 18 Oct 2026).
 - [ ] **B4. Terminal-U flag (Q4).** `csv_feature_extraction.py` L51: `x[0] == 'u' or x[-1] == 'u'`.
 - [ ] **B5. Feature names (Q1, Q5).** One name per feature across code, Table 1 and figures (map below). Keep a shim that reads old CSVs.
 - [ ] **B6. rfam alert (Q7).** `csv_feature_extraction.py` L23 drops `rfam_alert`, which miRDeep2's documentation says should overrule its true-positive estimate. Pass it through to `xgboost_judgement.csv`.

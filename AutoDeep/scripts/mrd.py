@@ -7,8 +7,12 @@ coordinates. These are the same reads, in the same order, that miRDeep2 draws
 in pdfs_*/<provisional_id>.pdf, which AutoDeep used to parse with pypdf.
 
 The locus's 'exp' line marks each precursor position as flank (f), mature (M),
-loop (l) or star (S), the parts miRDeep2 scores the locus on.
+loop (l) or star (S), the parts miRDeep2 scores the locus on. When star reads
+exist, an 'obs' line marks the observed star (the most abundant star read)
+instead; that is the star result.csv reports. 'pri_seq' and 'pri_struct' are
+the precursor and its RNAfold structure, which miRDeep2 used to find the parts.
 """
+import math
 import re
 from typing import List, NamedTuple, Optional, Tuple
 
@@ -16,7 +20,7 @@ import numpy as np
 import pandas as pd
 
 READ_LINE = re.compile(r'^(\S+)_x(\d+)\s+([.A-Za-z]+)(?:\s|$)')
-EXP_LINE = re.compile(r'^exp\s+(\S+)')
+FIELD_LINE = re.compile(r'^(exp|obs|pri_seq|pri_struct)\s+(\S+)')
 
 # miRDeep2_core_algorithm.pl, test_query: a read belongs to the first of these
 # whose region contains it, allowing it to start up to 2 nt before the region
@@ -29,11 +33,14 @@ FUZZ_END = 5
 class Locus(NamedTuple):
     exp: Optional[str]
     reads: List[Tuple[str, int]]
+    obs: Optional[str] = None
+    pri_seq: Optional[str] = None
+    pri_struct: Optional[str] = None
 
 
 def parse_mrd(path):
-    """Return {provisional_id: Locus(exp, [(alignment, count), ...])}, reads in file order."""
-    exps = {}
+    """Return {provisional_id: Locus(exp, [(alignment, count), ...], obs, pri_seq, pri_struct)}, reads in file order."""
+    fields = {}
     loci = {}
     pid = None
     with open(path) as f:
@@ -41,17 +48,19 @@ def parse_mrd(path):
             if line.startswith('>'):
                 pid = line[1:].strip()
                 loci.setdefault(pid, [])
+                fields.setdefault(pid, {})
                 continue
             if pid is None:
                 continue
-            m = EXP_LINE.match(line)
+            m = FIELD_LINE.match(line)
             if m:
-                exps[pid] = m.group(1)
+                fields[pid][m.group(1)] = m.group(2)
                 continue
             m = READ_LINE.match(line)
             if m:
                 loci[pid].append((m.group(3), int(m.group(2))))
-    return {pid: Locus(exps.get(pid), reads) for pid, reads in loci.items()}
+    return {pid: Locus(reads=reads, **{k: fields[pid].get(k) for k in ('exp', 'obs', 'pri_seq', 'pri_struct')})
+            for pid, reads in loci.items()}
 
 
 def arm_counts(locus):
@@ -95,3 +104,45 @@ def five_prime_features(reads):
     selected = df[(df['nucleotide'] == top['nucleotide']) & (df['position'] == top['position'])]
     window = df[(df['position'] - top['position']) <= 20]
     return selected['count'].sum() / window['count'].sum(), df.shape[0]
+
+
+def base_pairs(structure):
+    """{position: partner} for a dot-bracket structure, 1-based."""
+    pairs, stack = {}, []
+    for pos, c in enumerate(structure, 1):
+        if c == '(':
+            stack.append(pos)
+        elif c == ')':
+            partner = stack.pop()
+            pairs[pos], pairs[partner] = partner, pos
+    return pairs
+
+
+def overhangs(locus):
+    """Return the signed 3' overhangs (Drosha end, Dicer end) of the mature-star duplex.
+
+    The Drosha end is the base of the hairpin stem, the Dicer end the loop side.
+    Only base pairs between the mature and the star count, because Drosha and
+    Dicer cut off the flanks and the loop. At the Drosha end the outermost of
+    these pairs is taken, at the Dicer end the innermost, and the overhang is
+    the number of unpaired nucleotides beyond that pair on the strand whose 3'
+    end is there, minus the number on the strand whose 5' end is there: +2 for
+    a canonical cut, 0 for a blunt end, negative for a 5' overhang. The star is
+    the observed one (obs line) and the structure is pri_struct. NaN for both
+    when the locus has no star reads, because miRDeep2's star is then its
+    prediction, or when the mature and star do not pair.
+    """
+    if locus.pri_struct is None:
+        raise ValueError("locus has no pri_struct line")
+    if locus.obs is None or 'M' not in locus.obs or 'S' not in locus.obs:
+        return math.nan, math.nan
+    # The strands on the 5' and 3' arms, whichever is the mature
+    (beg5, end5), (beg3, end3) = sorted((locus.obs.index(mark) + 1, locus.obs.rindex(mark) + 1) for mark in 'MS')
+    pairs = base_pairs(locus.pri_struct)
+    duplex = sorted((i, pairs[i]) for i in range(beg5, end5 + 1) if beg3 <= pairs.get(i, 0) <= end3)
+    if not duplex:
+        return math.nan, math.nan
+    (outer5, outer3), (inner5, inner3) = duplex[0], duplex[-1]
+    drosha = (end3 - outer3) - (outer5 - beg5)
+    dicer = (end5 - inner5) - (inner3 - beg3)
+    return drosha, dicer
