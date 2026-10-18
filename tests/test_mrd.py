@@ -46,6 +46,15 @@ def test_parse_keeps_exp_string(loci):
     assert loci["locus_2"].exp == "ffffMMMM"
 
 
+def test_parse_keeps_obs_and_precursor(loci):
+    assert loci["locus_1"].obs == "ffffSSSSllllMMMMff"
+    assert loci["locus_1"].pri_seq == "acguagcuacguagcuac"
+    assert loci["locus_1"].pri_struct == "..((((....))))...."
+    # No star reads: miRDeep2 writes no obs line
+    assert loci["locus_2"].obs is None
+    assert loci["locus_2"].pri_struct is None
+
+
 def test_homogeneity_and_num_locis(loci):
     homogeneity, num_locis = five_prime_features(loci["locus_1"].reads)
     # Dominant read starts 'a' at 4: reads 1 and 2 (15). Denominator: every read

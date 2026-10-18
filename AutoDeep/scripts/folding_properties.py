@@ -4,7 +4,7 @@ import pandas as pd
 import numpy as np
 import sys
 import os
-from mrd import parse_mrd, five_prime_features
+from mrd import parse_mrd, five_prime_features, overhangs
 from tqdm import tqdm
 import warnings
 
@@ -15,153 +15,26 @@ file = os.path.join(current_dir, "AutoDeepRun/RNAfold_novel_precursor_miRNAs.txt
 
 #file = "AutoDeepRun/RNAfold_novel_precursor_miRNAs.txt"
 
-folding_structure = []
 folding_energies = []
-three_prime_overhang = []
 loci_names = []
-precursor_sequence = []
 
 
-print("Calculating folding energies and identifying 3' 2nt overhangs for potential miRNAs")
+print("Reading folding energies of potential miRNAs")
 
 with open(file) as f:
 		for i, line in enumerate(f.readlines()):
-				if (i+1) % 3 == 2:
-						precursor_sequence.append(line.strip())
 				if (i+1) % 3 == 1:
 						loci_names.append(line[1:].strip())
 				if (i+1) % 3 == 0:
 						z = re.findall(r'\(\s*-?\d+\.\d+\)', line)[0]
 						folding_energies.append(z)
 
-						line = (re.sub(r'\(\s*-?\d+\.\d+\)','', line)).strip()
-
-						folding_structure.append(line)
-						left = line.index('(')
-						right = line[::-1].index(')')
-						three_prime_overhang.append(abs(right - left))
-
-
-
-
-
-
-data2 = pd.read_csv(os.path.join(current_dir, "AutoDeepRun/formatted_novel_miRNA.csv"))
-
-data2['location'] = data2.apply(lambda row: re.search(row['consensus_mature_sequence'], row['consensus_precursor_sequeunce']).start() if re.search(row['consensus_mature_sequence'], row['consensus_precursor_sequeunce']) else None, axis=1)
-
-
-
 
 #Note: gotta use RNAfold on entire pri-miRNA to get folding energies not just the pre-RNA: JK
 
+# The 3' overhangs come from output.mrd below, on the structure miRDeep2 used (B3)
 
-structure_lengths = [len(item)%2 for item in folding_structure]
-
-
-
-#test new method on a single sequence
-
-#Idea: Find the absolute location of the mature and star sequences in the precursor sequence. Then, find the absolute location of all the unpaired nucleotides in the structure and match them with the mature and star sequences.
-#Then, align the mature and star sequences with the unpaired nucleotides and extract the 2nt overhangs from the precursor sequence.
-
-top_overhangs = []
-mature_location = []
-for i in range(len(folding_structure)):
-	
-	structure = folding_structure[i]
-	precursor_sequence = data2['consensus_precursor_sequeunce'][i]
-	mature_sequence = data2['consensus_mature_sequence'][i]
-	star_sequence = data2['consensus_star_sequence'][i]
-
-
-	mature_on_top = False
-	if re.search(mature_sequence,precursor_sequence).start() < re.search(star_sequence,precursor_sequence).start():
-	
-		mature_on_top = True
-	else:
-	
-		mature_on_top = False
-
-	mature_location.append(mature_on_top)
-	if mature_on_top:
-		pertinent_interval_left = range(0, len(mature_sequence)+1)
-		pertinent_interval_right = range(len(precursor_sequence) - len(star_sequence), len(precursor_sequence)+1)
-	else:
-		pertinent_interval_left = range(0, len(star_sequence)+1)
-		pertinent_interval_right = range(len(precursor_sequence) - len(mature_sequence), len(precursor_sequence)+1)
-
-	
-
-	unpaired_nucleotides = (list(re.finditer('\.+', folding_structure[i])))
-	
-	Left = []
-	if structure[0] != '.':
-		Left.append('')
-	Right = []
-
-	for item in unpaired_nucleotides:
-		item_range = list(range(item.span()[0], item.span()[1]))
-		left_intersection = ([x for x in item_range if x in pertinent_interval_left])
-		right_intersection = ([x for x in item_range if x in pertinent_interval_right])
-	
-		if len(left_intersection) != 0:
-			Left.append(structure[left_intersection[0]: left_intersection[-1]+1])
-		if len(right_intersection) != 0:
-			Right.append(structure[right_intersection[0]: right_intersection[-1]+1])
-
-	if len(Left) > len(Right):
-		Right = [''] * (len(Left) - len(Right)) + Right
-
-
-
-	if structure[-1] != '.':
-		Right.append('')
-
-	
-	bot_3nt_overhang = abs(len(Left[0]) - len(Right[-1]))
-
-	Left = Left[1:]
-	Right = Right[:-1]
-	top_offset = 0
-	bot_offset = 0
-
-	for j in range(len(Left)):
-		diff = len(Left[j]) - len(Right[-j - 1])
-		if j != len(Left) - 1:
-			if diff < 0:
-				top_offset += abs(diff)
-			else:
-				bot_offset += abs(diff)
-		else:
-			if Left[j] != '' and Right[-j - 1] != '':
-				if diff < 0:
-					top_offset += abs(diff)
-				else:
-					bot_offset += abs(diff)
-
-	
-	if mature_on_top:
-		top = (' ' * (top_offset + bot_3nt_overhang) + mature_sequence)
-		bot = (' ' * bot_offset + star_sequence[::-1])
-	
-		top_overhangs.append(abs(len(top) - len(bot)))
-	else:
-		top = (' ' * (top_offset + bot_3nt_overhang) + star_sequence)
-		bot = (' ' * bot_offset + mature_sequence[::-1])
-
-		top_overhangs.append(abs(len(top) - len(bot)))
-
-
-
-
-
-
-
-
-
-#print(len(mature_location), len(top_overhangs), len(three_prime_overhang))
-data = pd.DataFrame({'provisional_id' : loci_names, 'Folding Energy': [float(item[1:-1]) for item in folding_energies], '3\' Overhang Bot': three_prime_overhang, '3\' Overhang Top' : top_overhangs})
+data = pd.DataFrame({'provisional_id' : loci_names, 'Folding Energy': [float(item[1:-1]) for item in folding_energies]})
 
 data2 = pd.read_csv(os.path.join(current_dir, "AutoDeepRun/feature_engineered_miRNA_Deep_data_novel_miRNAs.csv"))
 
@@ -476,12 +349,24 @@ if missing:
 
 five_prime_process_signal_selected_row_count_sum_over_mature_count_sum = []
 num_locis = []
+drosha_overhangs = []
+dicer_overhangs = []
 for item in tqdm(loci):
 	homogeneity, loci_count = five_prime_features(mrd_loci[item].reads)
 	five_prime_process_signal_selected_row_count_sum_over_mature_count_sum.append(homogeneity)
 	num_locis.append(loci_count)
+	# Signed 3' overhangs; blank for loci without star reads
+	drosha, dicer = overhangs(mrd_loci[item])
+	drosha_overhangs.append(drosha)
+	dicer_overhangs.append(dicer)
 
 signaling_df = pd.DataFrame({'provisional_id': loci, "five_prime_process_signal_selected_row_count_sum_over_mature_count_sum" : five_prime_process_signal_selected_row_count_sum_over_mature_count_sum,  'num_locis' : num_locis})
 intersected_data = pd.merge(signaling_df, intersected_data, on='provisional_id')
+# "Bot" is the Drosha end (base of the stem), "Top" the Dicer end (loop side). They
+# follow Folding Energy, as in the training data (AutoDeep train checks the column order).
+overhang_df = pd.DataFrame({'3\' Overhang Bot': drosha_overhangs, '3\' Overhang Top': dicer_overhangs}, index=loci)
+position = intersected_data.columns.get_loc('Folding Energy') + 1
+for offset, name in enumerate(overhang_df.columns):
+	intersected_data.insert(position + offset, name, intersected_data['provisional_id'].map(overhang_df[name]))
 
 intersected_data.to_csv(os.path.join(current_dir, "AutoDeepRun/fully_formatted_data.csv"), index = False)

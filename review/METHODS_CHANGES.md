@@ -2,6 +2,12 @@
 
 Sentences in the manuscript's Methods that must change because the code changed. One entry per change: item ID, old text, new text.
 
+## B3. Signed 3' overhangs at both ends of the duplex
+
+- **Old text:** TODO (Tejus): paste the sentences that define "3' Overhang Bot" and "3' Overhang Top" (Methods and Table 1).
+- **New text:** "For each candidate, AutoDeep computes the 3' overhang at both ends of the mature-star duplex, at the base of the stem (Drosha end) and at the loop (Dicer end), from miRDeep2's output.mrd: the mature's position, the most abundant star read, and the RNAfold structure of the precursor that miRDeep2 used. As in miRDeep2, the mature's position and the structure give the star expected for 2-nt 3' overhangs at both ends, and each overhang is 2 plus the offset of the observed star's end from the expected one. Positive values are 3' overhangs, 0 is a blunt end and negative values are 5' overhangs. Candidates without star reads have no overhang values, because miRDeep2's star is then its own prediction."
+- **Note:** before B3, "Bot" was the unsigned difference between the unpaired 5' and 3' ends of AutoDeep's own fold of the precursor, and "Top" came from a padding heuristic; both were computed even without star reads. The training data in `training_data_pre/` keep those values until B8 rebuilds them, and the shipped model was trained on them, so it has to be retrained (D1) before the new definition is used for the paper's results.
+
 ## B1. Read alignments from output.mrd
 
 - **Old text:** Using mirDeep2's alignment of reads to predicted precursor, 5' homogeneity was quantified.
