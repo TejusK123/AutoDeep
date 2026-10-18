@@ -118,46 +118,31 @@ def base_pairs(structure):
     return pairs
 
 
-def expected_star(pairs, mature_beg, mature_end):
-    """Return the (beg, end) of the star miRDeep2 expects for this mature, or None.
-
-    Port of find_star in miRDeep2_core_algorithm.pl: the star pairs with the
-    mature so that both ends have 2-nt 3' overhangs. Where the nucleotide it
-    anchors on is unpaired, it moves into the duplex to the nearest paired one
-    and compensates for the distance. None if the mature has no base pair.
-    """
-    last = mature_end - 2
-    length = last - mature_beg + 1
-    shift = next((k for k in range(length) if last - k in pairs), None)
-    shift_end = next((k for k in range(length) if mature_beg + k in pairs), None)
-    if shift is None or shift_end is None:
-        return None
-    return pairs[last - shift] - shift, pairs[mature_beg + shift_end] + shift_end + 2
-
-
 def overhangs(locus):
     """Return the signed 3' overhangs (Drosha end, Dicer end) of the mature-star duplex.
 
     The Drosha end is the base of the hairpin stem, the Dicer end the loop side.
-    At each end, the overhang is how far one strand's 3' end extends past the
-    partner of the other strand's 5' end: +2 for a canonical cut, 0 for a blunt
-    end, negative for a 5' overhang. It is 2 plus the offset of the observed
-    star (the obs line) from the star miRDeep2 expects for 2-nt overhangs, on
-    the structure in output.mrd. NaN for both when the locus has no star reads,
-    because miRDeep2's star is then its prediction.
+    Only base pairs between the mature and the star count, because Drosha and
+    Dicer cut off the flanks and the loop. At the Drosha end the outermost of
+    these pairs is taken, at the Dicer end the innermost, and the overhang is
+    the number of unpaired nucleotides beyond that pair on the strand whose 3'
+    end is there, minus the number on the strand whose 5' end is there: +2 for
+    a canonical cut, 0 for a blunt end, negative for a 5' overhang. The star is
+    the observed one (obs line) and the structure is pri_struct. NaN for both
+    when the locus has no star reads, because miRDeep2's star is then its
+    prediction, or when the mature and star do not pair.
     """
     if locus.pri_struct is None:
         raise ValueError("locus has no pri_struct line")
     if locus.obs is None or 'M' not in locus.obs or 'S' not in locus.obs:
         return math.nan, math.nan
-    mature_beg, mature_end = locus.obs.index('M') + 1, locus.obs.rindex('M') + 1
-    star_beg, star_end = locus.obs.index('S') + 1, locus.obs.rindex('S') + 1
-    expected = expected_star(base_pairs(locus.pri_struct), mature_beg, mature_end)
-    if expected is None:
+    # The strands on the 5' and 3' arms, whichever is the mature
+    (beg5, end5), (beg3, end3) = sorted((locus.obs.index(mark) + 1, locus.obs.rindex(mark) + 1) for mark in 'MS')
+    pairs = base_pairs(locus.pri_struct)
+    duplex = sorted((i, pairs[i]) for i in range(beg5, end5 + 1) if beg3 <= pairs.get(i, 0) <= end3)
+    if not duplex:
         return math.nan, math.nan
-    # The star's 3' end faces the mature's 5' end; the mature's 3' end faces the star's 5' end
-    at_mature_5p = 2 + star_end - expected[1]
-    at_mature_3p = 2 + star_beg - expected[0]
-    if mature_beg < star_beg:  # mature on the 5' arm, so its 5' end is at the Drosha end
-        return at_mature_5p, at_mature_3p
-    return at_mature_3p, at_mature_5p
+    (outer5, outer3), (inner5, inner3) = duplex[0], duplex[-1]
+    drosha = (end3 - outer3) - (outer5 - beg5)
+    dicer = (end5 - inner5) - (inner3 - beg3)
+    return drosha, dicer

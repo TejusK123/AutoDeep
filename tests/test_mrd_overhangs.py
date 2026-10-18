@@ -1,12 +1,12 @@
 """B3: signed 3' overhangs at the two ends of the mature-star duplex, from output.mrd.
 
-At each end, the overhang is how far one strand's 3' end extends past the
-partner of the other strand's 5' end: +2 for a canonical Drosha or Dicer cut,
-0 for a blunt end, negative when the overhang is on the 5' side. As in
-miRDeep2 (find_star in miRDeep2_core_algorithm.pl), the mature's position and
-the precursor structure give the star expected for 2-nt overhangs, and the
-overhang is 2 plus the observed star's offset from it. Loci without star reads
-have no overhangs.
+Duplex rule (Tejus, 18 Oct 2026): only base pairs between the mature and the
+star count, because Drosha and Dicer cut off the flanks and the loop. At the
+Drosha end the outermost of these pairs is taken, at the Dicer end the
+innermost, and the overhang is the number of unpaired nucleotides beyond it on
+the strand whose 3' end is there, minus the number on the strand whose 5' end
+is there: +2 for a canonical cut, 0 for a blunt end, negative for a 5'
+overhang. Loci without star reads have no overhangs.
 """
 import glob
 import math
@@ -23,6 +23,14 @@ RUN = os.environ.get("AUTODEEP_TEST_RUN")
 # A perfect hairpin: 5' flank 1-10, 5' arm 11-36, loop 37-46, 3' arm 47-72 and
 # 3' flank 73-82, so position i pairs with 83 - i.
 HAIRPIN = "." * 10 + "(" * 26 + "." * 10 + ")" * 26 + "." * 10
+
+
+def structure(length, pairs):
+    """Dot-bracket string with the given (i, j) base pairs, 1-based, i < j."""
+    marks = ["."] * length
+    for i, j in pairs:
+        marks[i - 1], marks[j - 1] = "(", ")"
+    return "".join(marks)
 
 
 def obs_line(length, mature, star):
@@ -50,9 +58,9 @@ def locus(mature, star, structure=HAIRPIN):
     ((53, 72), 2, 4),
 ])
 def test_mature_on_5p_arm(star, drosha, dicer):
-    # Mature 13-34. Drosha end: the star's 3' end against 70, the partner of the
-    # mature's 5' end. Dicer end: the mature's 3' end (34) against the partner
-    # of the star's 5' end (51 pairs with 32).
+    # Mature 13-34. On a perfect helix this is the star's 3' end against 70, the
+    # partner of the mature's 5' end (Drosha end), and the mature's 3' end (34)
+    # against the partner of the star's 5' end (Dicer end; 51 pairs with 32).
     assert overhangs(locus((13, 34), star)) == (drosha, dicer)
 
 
@@ -63,20 +71,62 @@ def test_mature_on_5p_arm(star, drosha, dicer):
     ((15, 32), 4, 0),
 ])
 def test_mature_on_3p_arm(star, drosha, dicer):
-    # Mature 51-72. Drosha end: the mature's 3' end (72) against the partner of
-    # the star's 5' end. Dicer end: the star's 3' end against 32, the partner of
-    # the mature's 5' end.
+    # Mature 51-72. On a perfect helix this is the mature's 3' end (72) against
+    # the partner of the star's 5' end (Drosha end), and the star's 3' end
+    # against 32, the partner of the mature's 5' end (Dicer end).
     assert overhangs(locus((51, 72), star)) == (drosha, dicer)
 
 
-def test_unpaired_end_counts_as_continuing_the_helix():
-    # As in miRDeep2. The mature's 5' nucleotide (13) is unpaired, so its partner
-    # is taken to be one past 69, the partner of 14.
-    structure = "." * 13 + "(" * 23 + "." * 10 + ")" * 23 + "." * 13
-    assert overhangs(locus((13, 34), (51, 72), structure)) == (2, 2)
-    # 32-36 are unpaired, so 32's partner is taken to be 46, one before 47, the partner of 31
-    structure = "." * 10 + "(" * 21 + "." * 15 + ")" * 21 + "." * 10
-    assert overhangs(locus((13, 34), (46, 67), structure)) == (2, 2)
+def test_unpaired_end_nucleotides_dangle():
+    # The mature's 5' nucleotide (13) is unpaired. The outermost pair is 14-69:
+    # 3 star nucleotides beyond it (70-72) minus 1 mature nucleotide (13).
+    unpaired_5p = "." * 13 + "(" * 23 + "." * 10 + ")" * 23 + "." * 13
+    assert overhangs(locus((13, 34), (51, 72), unpaired_5p)) == (2, 2)
+    # 32-36 are unpaired. The innermost pair is 31-47: 3 mature nucleotides
+    # beyond it (32-34) minus 1 star nucleotide (46).
+    unpaired_3p = "." * 10 + "(" * 21 + "." * 15 + ")" * 21 + "." * 10
+    assert overhangs(locus((13, 34), (46, 67), unpaired_3p)) == (2, 2)
+
+
+# Star 21-42 on the 5' arm, mature 61-81 on the 3' arm, paired i with 100 - i
+# from 21-79 to 38-62. Star 39-42 are unpaired and loop nucleotide 43 pairs with
+# the mature's 5' end (61), as in Pomonella's QFTL02000135.1_4908.
+LOOP_PAIR = structure(92, [(i, 100 - i) for i in range(21, 39)] + [(43, 61)])
+
+
+def test_pairs_with_the_loop_do_not_count():
+    # Innermost mature-star pair 38-62: 4 star nucleotides beyond it (39-42)
+    # minus 1 mature nucleotide (61). miRDeep2's expected-star rule measures
+    # from 61's partner in the loop (43) instead and gives -1.
+    assert overhangs(locus((61, 81), (21, 42), LOOP_PAIR)) == (2, 3)
+
+
+def test_same_duplex_whichever_strand_is_mature():
+    # miRDeep2's rule gives (2, -1) with the mature on the 3' arm and (2, 3) with it on the 5' arm
+    assert overhangs(locus((21, 42), (61, 81), LOOP_PAIR)) == overhangs(locus((61, 81), (21, 42), LOOP_PAIR))
+
+
+def test_bulge_next_to_the_end():
+    # As in Pomonella's QFTL02000007.1_25533: the mature's last nucleotide (82)
+    # pairs with star nucleotide 24, then mature 77-81 bulge, then 25-76 to
+    # 40-61. Drosha end: outermost pair 24-82, 0 mature nucleotides beyond it
+    # minus 3 star nucleotides (21-23). miRDeep2's rule steps over the bulge,
+    # treats it as paired and gives 2.
+    bulge = structure(92, [(i, 101 - i) for i in range(25, 41)] + [(24, 82)])
+    assert overhangs(locus((61, 82), (21, 42), bulge)) == (-3, 2)
+
+
+def test_frayed_end_reads_as_blunt():
+    # Known limit (METHODS_CHANGES.md, B3): mature 30-34 and star 49-53 are all
+    # unpaired, 5 nucleotides beyond the innermost pair (29-54) on each strand,
+    # which nets to 0, the same as a blunt end.
+    frayed = structure(82, [(i, 83 - i) for i in range(11, 30)])
+    assert overhangs(locus((13, 34), (49, 72), frayed)) == (2, 0)
+
+
+def test_no_mature_star_pair_gives_no_overhangs():
+    drosha, dicer = overhangs(locus((13, 34), (51, 72), "." * len(HAIRPIN)))
+    assert math.isnan(drosha) and math.isnan(dicer)
 
 
 def test_no_star_reads_gives_no_overhangs():
@@ -96,10 +146,10 @@ def test_missing_structure_raises():
 # Ten MirGeneDB 3.0 precursors chosen in advance, with their ViennaRNA 2.7.0
 # folds (tests/data/mirgenedb_hsa_ten.csv). Seven give 2 at both ends. The
 # exceptions follow from their folds:
-# - Let-7-P2a1: the 5p arm's 5' nucleotide is a bulge, so miRDeep2's rule takes
-#   its partner from the next pair in, one short of the 3p arm's end.
-# - Mir-145: the 3p arm ends 1 nt past the partner of the 5p arm's 5' end.
-# - Mir-21: MirGeneDB's 5p arm (24 nt) ends 3 nt past the partner of the 3p arm's 5' end.
+# - Let-7-P2a1: the 5p arm's 5' nucleotide (31) is a bulge. Outermost pair
+#   32-100: 2 nucleotides of the 3p arm beyond it minus 1 of the 5p arm.
+# - Mir-145: outermost pair 31-89, and the 3p arm ends 1 nt beyond it.
+# - Mir-21: innermost pair 51-69, and MirGeneDB's 5p arm (24 nt) ends 3 nt beyond it.
 MIRGENEDB_EXCEPTIONS = {"Hsa-Let-7-P2a1": (1, 2), "Hsa-Mir-145": (1, 2), "Hsa-Mir-21": (2, 3)}
 MIRGENEDB = pd.read_csv(os.path.join(REPO, "tests", "data", "mirgenedb_hsa_ten.csv"), comment="#")
 
