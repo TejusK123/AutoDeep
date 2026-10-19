@@ -38,15 +38,31 @@ class Locus(NamedTuple):
     pri_struct: Optional[str] = None
 
 
+def strip_commas(text):
+    """Remove every comma, as init_data.py does to result_*.csv before reading it.
+
+    Locus IDs can contain commas (NCBI RefSeq contig names often do), so the
+    IDs in output.mrd go through this too, to match those in result_*.csv.
+    """
+    return text.replace(',', '')
+
+
 def parse_mrd(path):
-    """Return {provisional_id: Locus(exp, [(alignment, count), ...], obs, pri_seq, pri_struct)}, reads in file order."""
+    """Return {provisional_id: Locus(exp, [(alignment, count), ...], obs, pri_seq, pri_struct)}, reads in file order.
+
+    IDs lose their commas, as in result_*.csv (strip_commas).
+    """
     fields = {}
     loci = {}
+    original_ids = {}
     pid = None
     with open(path) as f:
         for line in f:
             if line.startswith('>'):
-                pid = line[1:].strip()
+                original = line[1:].strip()
+                pid = strip_commas(original)
+                if original_ids.setdefault(pid, original) != original:
+                    raise ValueError(f"{path}: IDs {original_ids[pid]!r} and {original!r} are both {pid!r} without commas")
                 loci.setdefault(pid, [])
                 fields.setdefault(pid, {})
                 continue

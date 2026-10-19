@@ -2,6 +2,7 @@ import os
 import sys
 import pandas as pd
 from datetime import datetime
+from mrd import strip_commas
 
 
 def format_csv(csv_path):
@@ -60,7 +61,8 @@ def find_csv_files(directory):
         print(f"Processing file: {csv_file}")
         with open(csv_file, "r") as f:
             content = f.read()
-        content = content.replace(",", "")
+        # Commas would split fields when pandas reads the file; output.mrd IDs lose theirs the same way (A8)
+        content = strip_commas(content)
         with open(csv_file, "w") as f:
             f.write(content)
         format_csv(csv_file)	

@@ -293,11 +293,11 @@ cmd_infer() {
     local current_dir="$PWD"
     
     # Step 1: Initialize and format data
-    info "Step 1/5: Initializing data..."
+    info "Step 1/4: Initializing data..."
     python "$SCRIPT_DIR/init_data.py" "$input_dir" || error "Data initialization failed"
     
     # Step 2: Detect correct RNAfold option format for this system
-    info "Step 2/5: Detecting RNAfold version..."
+    info "Step 2/4: Detecting RNAfold version..."
     local noPS_option="-noPS"
     if RNAfold --help 2>/dev/null | grep -q -- '--noPS'; then
         noPS_option="--noPS"
@@ -305,7 +305,7 @@ cmd_infer() {
     fi
     
     # Step 3: Extract sequences and run RNAfold
-    info "Step 3/5: Running RNAfold for secondary structure prediction..."
+    info "Step 3/4: Running RNAfold for secondary structure prediction..."
     if [[ ! -f "$current_dir/AutoDeepRun/formatted_novel_miRNA.csv" ]]; then
         error "Required file not found: AutoDeepRun/formatted_novel_miRNA.csv"
     fi
@@ -314,22 +314,8 @@ cmd_infer() {
         RNAfold "$noPS_option" > "$current_dir/AutoDeepRun/RNAfold_novel_precursor_miRNAs.txt" || \
         error "RNAfold execution failed"
     
-    # Step 4: Clean up filenames (remove commas which cause issues)
-    info "Step 4/5: Cleaning up filenames..."
-    if [[ -d "$current_dir/pdfs_"* ]]; then
-        while IFS= read -r -d '' file; do
-            local new_file="${file//,/}"
-            if [[ "$file" != "$new_file" ]]; then
-                mv "$file" "$new_file"
-            fi
-        done < <(find "$current_dir/pdfs_"* -type f -print0 2>/dev/null || true)
-    fi
-    
-    #TODO: Do the same filename cleanup for .mrd file
-
-
-    # Step 5: Extract features and run classification
-    info "Step 5/5: Extracting features and running classification..."
+    # Step 4: Extract features and run classification
+    info "Step 4/4: Extracting features and running classification..."
     python "$SCRIPT_DIR/csv_feature_extraction.py" || error "Feature extraction failed"
     python "$SCRIPT_DIR/folding_properties.py" "$input_dir" || error "Folding properties analysis failed"
     python "$SCRIPT_DIR/boosted_forest_inference.py" "$@" || error "Classification inference failed"
