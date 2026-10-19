@@ -52,10 +52,13 @@ def test_example_gives_expected_labels(outputs):
     assert list(new["prediction"]) == list(expected["prediction"])
 
 
+SHAP_VALUES = [f"shap_top{k}_value" for k in (1, 2, 3)]
+
+
 def test_example_gives_expected_features(outputs):
     # When a feature definition changes on purpose (Phase B), regenerate the expected file
     new, expected = outputs
-    features = [c for c in expected.columns if c != "prediction" and not c.endswith("_Prob")]
+    features = [c for c in expected.columns if c != "prediction" and not c.endswith("_Prob") and c not in SHAP_VALUES]
     pd.testing.assert_frame_equal(new[features], expected[features], check_exact=False, atol=1e-9, rtol=0)
 
 
@@ -65,3 +68,9 @@ def test_example_gives_expected_probabilities(outputs):
     assert probabilities
     # XGBoost's arithmetic differs slightly between x86 and arm64
     assert (new[probabilities] - expected[probabilities]).abs().max().max() < 1e-6
+
+
+def test_example_gives_expected_top_contributions(outputs):
+    # C4: the names are compared with the features above; the values, like the probabilities, nearly
+    new, expected = outputs
+    assert (new[SHAP_VALUES] - expected[SHAP_VALUES]).abs().max().max() < 1e-5

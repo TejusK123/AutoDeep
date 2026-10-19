@@ -38,3 +38,25 @@ def test_missing_model_feature_is_an_error(tmp_path):
     result, out = run_inference(df, str(tmp_path))
     assert result.returncode != 0
     assert "num_locis" in result.stderr
+
+
+def test_output_lists_each_locus_top_three_contributions(tmp_path):
+    # C4: the three features with the largest SHAP values (by size) for the predicted class
+    import pytest
+    import xgboost
+
+    from explain import contributions
+    from features import LABELS, encode_features
+
+    df = features()
+    result, out = run_inference(df, str(tmp_path))
+    assert result.returncode == 0, result.stderr
+    booster = xgboost.Booster()
+    booster.load_model(os.path.join(PKG, "model_weights", "miRNA_model.json"))
+    names = booster.feature_names
+    values, _ = contributions(booster, encode_features(df)[names])
+    for i, row in out.iterrows():
+        own = values[i, LABELS.index(row["prediction"])]
+        expected = sorted(range(len(names)), key=lambda j: -abs(own[j]))[:3]
+        assert [row[f"shap_top{k}_feature"] for k in (1, 2, 3)] == [names[j] for j in expected]
+        assert [row[f"shap_top{k}_value"] for k in (1, 2, 3)] == pytest.approx([own[j] for j in expected], abs=1e-6)
