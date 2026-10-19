@@ -4,6 +4,10 @@ examples/mirdeep2_tutorial/mirdeep2_output/ holds result_*.csv and output.mrd fr
 miRDeep2's own tutorial (see examples/mirdeep2_tutorial/README.md), and
 expected/xgboost_judgement.csv is AutoDeep's output on it with the bundled model.
 Unlike the Pomonella end-to-end tests, this one needs no local data, so it runs in CI.
+
+Each test runs twice: on the run as it is, and with a comma added to the contig
+name in result_*.csv and output.mrd (A8). Contig names can contain commas (NCBI
+RefSeq names often do) and AutoDeep removes them, so the output must not change.
 """
 import glob
 import os
@@ -20,14 +24,19 @@ EXAMPLE = os.path.join(REPO, "examples", "mirdeep2_tutorial")
 ENV = dict(os.environ, PYTHONDONTWRITEBYTECODE="1", PATH=os.path.dirname(sys.executable) + os.pathsep + os.environ["PATH"])
 
 
-@pytest.fixture(scope="module")
-def outputs(tmp_path_factory):
+@pytest.fixture(scope="module", params=["as_is", "commas_in_ids"])
+def outputs(request, tmp_path_factory):
     # init_data.py rewrites result_*.csv in place, so run on a copy
     run_dir = tmp_path_factory.mktemp("mirdeep2_output")
     inputs = glob.glob(os.path.join(EXAMPLE, "mirdeep2_output", "*"))
     assert inputs, "the example's miRDeep2 output is missing"
     for path in inputs:
         shutil.copy(path, run_dir)
+    if request.param == "commas_in_ids":
+        for path in run_dir.iterdir():
+            text = path.read_text()
+            assert "chrII:" in text
+            path.write_text(text.replace("chrII:", "chrII,:"))
     work = tmp_path_factory.mktemp("work")
     result = subprocess.run(["bash", AUTODEEP, "infer", str(run_dir)], cwd=work, env=ENV,
                             capture_output=True, text=True)
