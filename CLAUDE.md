@@ -49,26 +49,26 @@ We are revising the code in response to a mock peer review. The work list, with 
 - `init_data.py` rewrites the user's miRDeep2 `result_*.csv` in place (strips commas with `mrd.strip_commas`). Tests run on copies.
 - If `AutoDeep train` fails partway, the run folder is left behind.
 - `AutoDeep infer ... --model missing.json` only fails at the last step, after the whole pipeline has run.
-- `AutoDeep infer --help` names the output `AutoDeep_results.csv`; the file is `xgboost_judgement.csv`.
 - The README's test badge shows the `refactoring` branch; point it at `main` at release (D2).
 
 ## Layout
 
 - `AutoDeep/AutoDeep`: bash wrapper; put `AutoDeep/` on PATH to get the `AutoDeep` command (there is no setup.py)
 - `AutoDeep/scripts/AutoDeep.sh`: command dispatcher. `infer` runs init_data.py, RNAfold, csv_feature_extraction.py, folding_properties.py, boosted_forest_inference.py
-- `AutoDeep/scripts/features.py`: fixed encodings of the flag columns and labels (Candidate 0, Confident 1, falsepositive 2), shared by all scripts (A1)
+- `AutoDeep/scripts/features.py`: fixed encodings of the flag columns and labels (Candidate 0, Confident 1, falsepositive 2), shared by all scripts (A1); `TABLE1_NAMES`, each feature's name in the paper's Table 1, for figures (C4)
 - `AutoDeep/scripts/mrd.py`: parses miRDeep2's `output.mrd` (per locus: `exp` and `obs` strings, `pri_seq`, `pri_struct` and reads; IDs without commas, as init_data.py leaves `result_*.csv`: `strip_commas`, A8) and computes 5' homogeneity (unbiased Simpson index of the mature-arm reads' 5' starts; B2), `num_locis`, per-arm read counts by miRDeep2's own rule (`arm_counts`, from `reads_by_arm`; B1) and the signed 3' overhangs at both duplex ends from the terminal mature-star base pairs (`overhangs`, the duplex rule; B3)
 - `AutoDeep/scripts/hyperparameters.py`: reads `-hp` files (text "name value", JSON, or a run's config.json) without running code (A3)
-- `AutoDeep/scripts/boosted_forest_inference.py`: selects the model's features by name; `--model PATH` (default: bundled model)
+- `AutoDeep/scripts/boosted_forest_inference.py`: selects the model's features by name; `--model PATH` (default: bundled model). `xgboost_judgement.csv` also lists each locus's three largest SHAP contributions to its predicted label (`shap_top1_feature`, `shap_top1_value`, ...; C4)
+- `AutoDeep/scripts/explain.py`: SHAP values from XGBoost's built-in TreeSHAP (`pred_contribs`), shared by inference and visualize (C4)
 - `AutoDeep/scripts/boosted_forest_training.py`: `AutoDeep train` (Ray Tune + OptunaSearch). Writes only to `--out_dir` (default `AutoDeepRun/models/<timestamp>/`): miRNA_model.json, config.json, metrics.json, user_data.csv, tuning log. `-t` takes several files; `--seed` (default 42) seeds splits, XGBoost and the Optuna sampler. `load_training_set()` and `tuning_search_alg()` are shared with alt_model_test.py
-- `AutoDeep/scripts/boosted_forest_visualization.py`: `AutoDeep visualize`; tree plots only with `--trees N|all`; `--model PATH`
+- `AutoDeep/scripts/boosted_forest_visualization.py`: `AutoDeep visualize` (C4): SHAP summary plots per class, mean absolute SHAP per class, dependence plots for 5' homogeneity, the overhangs and folding energy, plus shap_values.csv and shap_importance.csv, in `plots<timestamp>/`; vector PDF (or `--format svg`), 8 pt Helvetica kept as text; colours from the dataviz skill's reference palette. Explains the bundled training data unless `--data CSV...`. Gain/weight/cover plots only with `--legacy_importance`; tree plots only with `--trees N|all`; `--model PATH`
 - `AutoDeep/scripts/alt_model_test.py`: SVM/KNN/MLP comparison for Table 2 (A4). Run as `python alt_model_test.py -m svm|knn|mlp` from an AutoDeepRun folder; same data, seed and run-folder outputs as `AutoDeep train` (`<model>_model.pkl` via joblib). Folds into evaluate.py at C1
 - `AutoDeep/training_data_pre/`: 2,907 labelled loci in 11 CSVs from 8 species; the shipped model's training data, read by `AutoDeep train`
 - `AutoDeep/training_data/`: 3,180 loci in 13 `new_data_*` CSVs with entropy-based 5' features (`normalized_entropy`, `normalized_entropy_s`); not used by the pipeline or shipped model
 - `AutoDeep/model_weights/miRNA_model.json`: shipped model (XGBoost 2.1.1, 983 rounds x 3 classes, depth 5)
 - `AutoDeep/AutoDeep.yml`: portable conda spec and the only requirements list (no requirements.txt); `AutoDeep/AutoDeep.linux-64.lock.yml`: exact Linux env the shipped model was trained in
 - `review/`: REVISIONS.md, reanalysis.py (reviewer's evaluation script), reanalysis_baseline.txt (its output on commit 133bf14), reanalysis_osx-arm64.txt (its output on Tejus's Mac), METHODS_CHANGES.md, homogeneity_measures.py (B2's comparison of 5' homogeneity measures on the testing folder; output in homogeneity_measures.txt)
-- `tests/`: pytest suite (139 tests); `conftest.py` puts `AutoDeep/scripts` on the import path. `tests/data/mirgenedb_hsa_ten.csv`: ten MirGeneDB 3.0 human precursors with ViennaRNA 2.7.0 folds, chosen in advance for the B3 overhang test
+- `tests/`: pytest suite (150 tests); `conftest.py` puts `AutoDeep/scripts` on the import path. `tests/data/mirgenedb_hsa_ten.csv`: ten MirGeneDB 3.0 human precursors with ViennaRNA 2.7.0 folds, chosen in advance for the B3 overhang test
 - `examples/mirdeep2_tutorial/`: miRDeep2's tutorial output (`mirdeep2_output/`) and AutoDeep's expected `xgboost_judgement.csv`; checked by `tests/test_example.py`. Regenerate the expected file when a Phase B item changes a feature on purpose
 - `.github/workflows/tests.yml`: CI, pytest on ubuntu-latest and macos-latest in an env built from `AutoDeep.yml`, on pushes and PRs to `refactoring` and `main`
 

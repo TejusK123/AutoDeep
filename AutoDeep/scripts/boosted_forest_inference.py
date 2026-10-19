@@ -6,6 +6,7 @@ import argparse
 import os
 import sys
 from features import LABELS, encode_features, decode_features, decode_labels
+from explain import contributions, top_contributions
 
 
 # Loading all relevant paths
@@ -45,9 +46,13 @@ X = merged_data[feature_names].to_numpy()
 y_pred = model.predict(X)
 y_logits = model.predict_proba(X)
 
+# Each locus's three largest contributions to its predicted class (SHAP values, C4)
+values, _ = contributions(model.get_booster(), X)
+top_df = top_contributions(values, y_pred, feature_names)
+
 # Create a dataframe with the results
 logits_df = pd.DataFrame(y_logits, columns = [f'{label}_Prob' for label in LABELS])
-inference_df = pd.concat([labels, merged_data, pd.DataFrame(y_pred, columns = ['prediction']), logits_df], axis = 1)
+inference_df = pd.concat([labels, merged_data, pd.DataFrame(y_pred, columns = ['prediction']), logits_df, top_df], axis = 1)
 
 
 

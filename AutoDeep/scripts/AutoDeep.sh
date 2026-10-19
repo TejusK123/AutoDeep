@@ -110,7 +110,10 @@ OUTPUT:
     Results are saved to:
     - AutoDeepRun/                          (created in current working directory)
     - AutoDeepRun/formatted_novel_miRNA.csv (processed miRNA data)
-    - AutoDeepRun/AutoDeep_results.csv      (classification results)
+    - AutoDeepRun/xgboost_judgement.csv     (labels, class probabilities and each
+                                             locus's three largest SHAP contributions
+                                             to its label: shap_top1_feature,
+                                             shap_top1_value, ...)
 
 DEPENDENCIES:
     - Python 3.6+
@@ -199,40 +202,55 @@ EOF
 # Display visualize command help
 show_visualize_help() {
     cat << 'EOF'
-AutoDeep visualize - Analyze and visualize model results
+AutoDeep visualize - Explain the model's predictions with SHAP values
 
 USAGE:
     AutoDeep visualize [OPTIONS]
 
 DESCRIPTION:
-    Generates visualizations and analyses of the trained model including:
-    - Feature importance plots (by gain, weight, and cover)
-    - Decision tree plots, labelled by round and class (with --trees)
+    Computes each feature's SHAP value (its contribution to each class's score,
+    exact TreeSHAP from XGBoost) for every locus in the data, and plots:
+    - one summary plot per class (every locus's SHAP value for every feature)
+    - the mean absolute SHAP value of each feature, per class
+    - dependence plots for 5' homogeneity, the two overhangs and folding energy
+    Text is 8 pt Helvetica (Arial or DejaVu Sans where Helvetica is missing),
+    kept as text in the PDF or SVG.
 
 REQUIREMENTS:
-    - Must be run from the directory that contains AutoDeepRun/
     - Requires graphviz for tree plots (included in the conda environment)
 
 OPTIONS:
     -h, --help              Show this help message
+    --data <csv> [...]      CSV(s) with the model's features to explain, e.g.
+                            AutoDeepRun/fully_formatted_data.csv
+                            (default: the bundled training data)
+    --format <pdf|svg>      File format of the SHAP plots (default: pdf)
+    --legacy_importance     Also plot XGBoost's feature importance by gain,
+                            weight and cover (PNG), as before
     --trees <N|all>         Also plot the trees of the first N boosting rounds
                             (one tree per class), or every tree with 'all'
-    -o, --output <dir>      Output directory base name (default: tree_plots)
+    -o, --output <dir>      Output directory base name (default: plots)
                             Full path will be <name><timestamp>/
     --model <path>          Model JSON to visualize (default: the bundled model)
 
 OUTPUT:
     Visualizations are saved in timestamped directory:
-    - feature_importance_gain.png       (feature importance by gain)
-    - feature_importance_weight.png     (feature importance by weight)
-    - feature_importance_cover.png      (feature importance by cover)
+    - shap_summary_Candidate.pdf, ...   (one summary plot per class)
+    - shap_importance.pdf               (mean absolute SHAP value per class)
+    - shap_dependence_<feature>.pdf     (five_prime_homogeneity, overhang_bot,
+                                         overhang_top, folding_energy)
+    - shap_values.csv                   (every locus's SHAP values, one row per
+                                         locus and class)
+    - shap_importance.csv               (the numbers behind shap_importance.pdf)
+    - feature_importance_gain.png, ...  (with --legacy_importance)
     - tree_round0000_Candidate.png, ... (decision trees, with --trees)
 
 EXAMPLES:
-    cd AutoDeepRun
     AutoDeep visualize
+    AutoDeep visualize --data AutoDeepRun/fully_formatted_data.csv
+    AutoDeep visualize --format svg
+    AutoDeep visualize --legacy_importance
     AutoDeep visualize --trees 5
-    AutoDeep visualize -o my_plots
 
 TROUBLESHOOTING:
     If graphviz is not found, install it:
@@ -352,12 +370,7 @@ cmd_visualize() {
     done
     
     check_dependencies
-    
-    # Check if we're in an AutoDeepRun directory
-    if [[ ! -d "AutoDeepRun" ]]; then
-        error "This command must be run from a directory containing 'AutoDeepRun/'"
-    fi
-    
+
     info "Starting visualization..."
     python "$SCRIPT_DIR/boosted_forest_visualization.py" "$@" || error "Visualization failed"
     info "Visualization completed successfully!"

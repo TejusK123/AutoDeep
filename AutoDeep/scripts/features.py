@@ -25,6 +25,28 @@ LABELS = ["Candidate", "Confident", "falsepositive"]
 # Name of the label column in the training data CSVs
 LABEL_COLUMN = "Candidate/Confident/no-mirna"
 
+# Each feature column's name in the paper's Table 1, for figures (B5 will rename the columns)
+TABLE1_NAMES = {
+    "Folding Energy": "Folding Energy",
+    "3' Overhang Bot": "3' Overhang Bot",
+    "3' Overhang Top": "3' Overhang Top",
+    "miRDeep2_score": "miRDeep2 Score",
+    "mirDeep_sensitivity": "miRDeep2 Sensitivity",
+    "sensitivity_uncertainty": "miRDeep2 Sensitivity sd",
+    "total_read_count": "Total Read Count",
+    "mature_read_count": "Mature Read Count",
+    "loop_read_count": "Loop Read Count",
+    "star_read_count": "Star Read Count",
+    "significant_randfold_p-value": "Significant Randfold p-value",
+    "homologous_seed_in_miRBase": "Homologous Seed in miRBase",
+    "consensus_mature_sequence_length": "Consensus Mature Sequence Length",
+    "mature_5'u_or_3'u": "Mature 5'/3' U?",
+    "consensus_star_sequence_length": "Consensus Star Sequence Length",
+    "consensus_precursor_sequence_length": "Consensus Precursor Sequence Length",
+    "num_locis": "Unique Alignments",
+    "five_prime_process_signal_selected_row_count_sum_over_mature_count_sum": "Five Prime Homogeneity",
+}
+
 
 def _lookup(values, mapping, column):
     out = []

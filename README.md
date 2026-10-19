@@ -60,7 +60,7 @@ The input directory should have the following file structure:
 
 #### Output
 A directory named "AutoDeepRun" which contains
-* XGBoost label prediction CSV
+* xgboost_judgement.csv: each locus's label, class probabilities and its three largest SHAP contributions to that label (`shap_top1_feature`, `shap_top1_value`, ...; positive values push towards the label)
 
 #### Flags
  * --model <path>                Model JSON to use (default: the bundled model)
@@ -101,18 +101,24 @@ In `--out_dir` (default `AutoDeepRun/models/<timestamp>/`):
 
 #### Description
 
-Plots the XGBoost model's feature importance (gain, weight, cover) and, on request, its decision trees.
+Explains the model's predictions with SHAP values (exact TreeSHAP, computed by XGBoost): one summary plot per class, the mean absolute SHAP value of each feature per class, and dependence plots for 5' homogeneity, the two overhangs and folding energy. The plots are vector files (PDF or SVG) with 8 pt Helvetica text kept as text.
 
 
 #### Input 
-N/A
+The bundled training data, or the CSV(s) given with `--data` (e.g. `AutoDeepRun/fully_formatted_data.csv` from `AutoDeep infer`)
 
 #### Output
-* Folder containing relevant figures as png
+A folder `plots<timestamp>/` with
+* shap_summary_<class>.pdf, shap_importance.pdf, shap_dependence_<feature>.pdf
+* shap_values.csv (every locus's SHAP values) and shap_importance.csv (the numbers behind shap_importance.pdf)
+* feature_importance_{gain,weight,cover}.png with `--legacy_importance`; decision tree PNGs with `--trees`
 
 #### Flags 
- * --trees <N|all>    Also plot the trees of the first N rounds (one per class), or all trees
-  * -o, --output TEXT  Output directory for tree plots
-  * --model <path>     Model JSON to visualize (default: the bundled model)
-  * --help             Show this message and exit.
+ * --data <csv> [<csv> ...]  CSV(s) to explain (default: the bundled training data)
+ * --format <pdf|svg>        File format of the SHAP plots (default: pdf)
+ * --legacy_importance       Also plot XGBoost's feature importance by gain, weight and cover, as before
+ * --trees <N|all>           Also plot the trees of the first N rounds (one per class), or all trees
+ * -o, --output TEXT         Output directory base name (default: plots)
+ * --model <path>            Model JSON to visualize (default: the bundled model)
+ * --help                    Show this message and exit.
 

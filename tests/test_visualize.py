@@ -1,6 +1,11 @@
-"""A5: tree plots are opt-in, dumped once, and labelled by round and class."""
+"""A5: tree plots are opt-in, dumped once, and labelled by round and class.
+
+C4: SHAP plots are the default output, as vector files with the text kept as
+text; the gain, weight and cover plots are a legacy option.
+"""
 import glob
 import os
+import re
 import subprocess
 import sys
 
@@ -28,15 +33,65 @@ def small_model(tmp_path_factory):
     return path
 
 
+SHAP_FILES = ["shap_dependence_five_prime_homogeneity", "shap_dependence_folding_energy",
+              "shap_dependence_overhang_bot", "shap_dependence_overhang_top", "shap_importance",
+              "shap_summary_Candidate", "shap_summary_Confident", "shap_summary_falsepositive"]
+LEGACY_FILES = ["feature_importance_cover.png", "feature_importance_gain.png", "feature_importance_weight.png"]
+
+
 def visualize(cwd, *args):
-    subprocess.run([sys.executable, VISUALIZE, *args], cwd=cwd, env=ENV, check=True, capture_output=True)
-    (out,) = glob.glob(os.path.join(cwd, "tree_plots*"))
+    result = subprocess.run([sys.executable, VISUALIZE, *args], cwd=cwd, env=ENV, capture_output=True, text=True)
+    assert result.returncode == 0, result.stdout + result.stderr
+    (out,) = glob.glob(os.path.join(cwd, "plots*"))
     return sorted(os.listdir(out))
 
 
-def test_default_writes_importance_plots_only(small_model, tmp_path):
+def output_dir(cwd):
+    (out,) = glob.glob(os.path.join(cwd, "plots*"))
+    return out
+
+
+def test_default_writes_shap_plots_and_tables(small_model, tmp_path):
     files = visualize(tmp_path, "--model", small_model)
-    assert files == ["feature_importance_cover.png", "feature_importance_gain.png", "feature_importance_weight.png"]
+    assert files == sorted([f + ".pdf" for f in SHAP_FILES] + ["shap_importance.csv", "shap_values.csv"])
+    # By default the bundled training data are explained: one row per locus and class
+    values = pd.read_csv(os.path.join(output_dir(tmp_path), "shap_values.csv"))
+    assert len(values) == 3 * 2907
+    assert sorted(values["class"].unique()) == ["Candidate", "Confident", "falsepositive"]
+    importance = pd.read_csv(os.path.join(output_dir(tmp_path), "shap_importance.csv"))
+    assert list(importance.columns) == ["feature", "name", "Candidate", "Confident", "falsepositive"]
+    assert len(importance) == 18
+
+
+def test_legacy_importance_option(small_model, tmp_path):
+    files = visualize(tmp_path, "--model", small_model, "--legacy_importance")
+    assert set(LEGACY_FILES) <= set(files)
+
+
+def test_pdf_keeps_text_as_embedded_truetype(small_model, tmp_path):
+    visualize(tmp_path, "--model", small_model)
+    with open(os.path.join(output_dir(tmp_path), "shap_summary_Confident.pdf"), "rb") as f:
+        pdf = f.read()
+    assert b"/FontFile2" in pdf and b"/Type3" not in pdf
+
+
+def test_svg_format_keeps_text_as_text(small_model, tmp_path):
+    files = visualize(tmp_path, "--model", small_model, "--format", "svg")
+    assert [f for f in files if f.endswith(".svg")] == [f + ".svg" for f in SHAP_FILES]
+    with open(os.path.join(output_dir(tmp_path), "shap_summary_Candidate.svg")) as f:
+        svg = f.read()
+    assert re.search(r"<text[^>]*>[^<]*Five Prime Homogeneity", svg)
+
+
+def test_data_option_explains_a_run_with_blank_overhangs(small_model, tmp_path):
+    data = pd.read_csv(TRAINING_CSV).iloc[:, :-1]
+    data.loc[:20, ["3' Overhang Bot", "3' Overhang Top"]] = float("nan")
+    path = tmp_path / "fully_formatted_data.csv"
+    data.to_csv(path, index=False)
+    visualize(tmp_path, "--model", small_model, "--data", str(path))
+    values = pd.read_csv(os.path.join(output_dir(tmp_path), "shap_values.csv"))
+    assert len(values) == 3 * len(data)
+    assert set(values["provisional_id"]) == set(data["provisional_id"])
 
 
 def test_trees_option_writes_each_class_of_each_round(small_model, tmp_path):
