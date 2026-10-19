@@ -6,7 +6,7 @@ XGBoost post-filter for miRDeep2. It labels each novel pre-miRNA candidate Candi
 
 We are revising the code in response to a mock peer review. The work list, with file/line references, open questions and acceptance tests, is in `review/REVISIONS.md`. Read it before starting any task. Put the item ID (A1, B2, ...) in branch names and commit messages. REVISIONS.md line numbers refer to commit 133bf14; the code has moved since, so search for the quoted code.
 
-### Status (18 Oct 2026, after A8)
+### Status (18 Oct 2026, after B2)
 
 - Phase A is complete; all merged into `refactoring`:
   - A1: fixed flag/label encoding
@@ -18,16 +18,17 @@ We are revising the code in response to a mock peer review. The work list, with 
   - A7: CI on Linux and macOS, `AutoDeep.yml` as the one requirements list, miRDeep2 tutorial example
   - A8 (added 18 Oct 2026, PR #12): locus IDs with commas. output.mrd IDs lose their commas as result.csv's do (`mrd.strip_commas`), so `AutoDeep infer` runs on FAW (it had failed since B1); FAW's features equal its training rows except the B3 overhangs
 - B1 is complete (PRs #2 and #10): the 5' features come from `output.mrd` and equal the pypdf values, and `arm_counts` reproduces miRDeep2's mature/star/loop counts in `result.csv` (tutorial: 8 loci; Pomonella: 212).
+- B2 is complete (PR #13): Q2 answered. 5' homogeneity is the unbiased Simpson index of the 5' start positions of the mature-arm reads (miRDeep2's arm rule, `mrd.reads_by_arm`), grouped by position whatever the first base (Tejus's choice), blank with fewer than 2 mature-arm reads; `num_locis` and the column name are unchanged (B5 renames). The reasons and the comparison of measures are in METHODS_CHANGES.md (B2) and `review/homogeneity_measures.py`. The training CSVs keep the old values until B8; until D1 retrains, the shipped model changes 88/2,907 training labels (Pomonella 8/212). Two optional extra 5' features, to decide before B8, are listed under B8 in REVISIONS.md.
 - B3 is complete (PR #11): Q3 answered. Signed 3' overhangs at the Drosha end ("Bot") and the Dicer end ("Top") by the duplex rule (Tejus's choice over miRDeep2's `find_star` rule: count from the terminal mature-star base pair, ignoring pairs with the flanks or loop), from the `obs` star and `pri_struct` in `output.mrd` (no refold: Tejus's choice, miRDeep2's ViennaRNA is current); blank without star reads. The reasons are in METHODS_CHANGES.md (B3, "For the paper"). The training CSVs keep the old unsigned values until B8. Until D1 retrains, the shipped model sees blanks it was never trained on: on Pomonella 29/212 labels change (28 Candidate and 1 Confident to falsepositive), all of them loci without star reads.
 - Also merged, outside REVISIONS: portable conda env for osx-arm64; training reads `training_data_pre/`.
-- Next session: ask Tejus where to start. B2 and B4-B8 wait on answers to Q1, Q2 and Q4-Q9 (B2 on Q2, the 5'-homogeneity denominator; `arm_counts` supports its mature-arm option).
-- CI (`.github/workflows/tests.yml`) is green: on PR #12 (128 passed, 8 skipped, the tests that need the local testing folder, on ubuntu-latest and macos-latest; 136 passed locally with it) and on `refactoring` after the merge (ff78f66). It runs on every push and PR to `refactoring` and `main`; check it with `gh pr checks <n>` before handing a PR over.
+- Next session: ask Tejus where to start. B4-B8 wait on answers to Q1 and Q4-Q9 (B4 on Q4, the terminal-U flag). C4 (SHAP) and the code changes in D1 need no answers.
+- CI (`.github/workflows/tests.yml`) is green: on PR #13 (131 passed, 8 skipped, the tests that need the local testing folder, on ubuntu-latest and macos-latest; 139 passed locally with it) and on `refactoring` after the merge (b79d833). It runs on every push and PR to `refactoring` and `main`; check it with `gh pr checks <n>` before handing a PR over.
 
 ### Waiting on Tejus (not code)
 
 - Regenerate Table 2 (SVM/KNN/MLP vs XGBoost) with the fixed `alt_model_test.py`; the old script trained on `training_data/` and never saved a usable model.
 - `review/METHODS_CHANGES.md`: old Methods text for A4 and B3 (overhang definitions, also in Table 1); hardware for the A6 reproducibility statement once D1 has retrained the model.
-- Answers to Q1, Q2 and Q4-Q9 in `review/REVISIONS.md`.
+- Answers to Q1 and Q4-Q9 in `review/REVISIONS.md`.
 - Whether `testing/Validation/` (CLAUDE.local.md) holds the Phase 2 test sets, and where the miRDeep2 runs behind them are; C1 needs their output.mrd and result_*.csv.
 - MirGeneDB's terms of use for the ten sequences in `tests/data/mirgenedb_hsa_ten.csv` (the site states no licence).
 - The `testfeatures` branch on GitHub (kept; not merged): one commit, 25ad41a (1 Mar 2025, "testing_features"), rewrites eight `training_data/original_data_*.csv` files and the model weights, and that content exists in no other branch. Possibly relevant to B8 (where the seven negative FAW "Bot" values came from). Keep, archive as a tag, or delete: Tejus to decide.
@@ -40,7 +41,7 @@ We are revising the code in response to a mock peer review. The work list, with 
 
 ### Open decisions (ask Tejus; do not decide)
 
-- Q1, Q2 and Q4-Q9 in REVISIONS.md are unanswered; B2, B4-B8 and C1/C3/C5 depend on them. Q1 (seed homology: labelling criterion or feature) affects the most items.
+- Q1 and Q4-Q9 in REVISIONS.md are unanswered; B4-B8 and C1/C3/C5 depend on them. Q1 (seed homology: labelling criterion or feature) affects the most items.
 - Feature set: since B1 the pipeline produces the shipped model's features (`five_prime_process_signal_...`, `num_locis`). Since B2, 5' homogeneity is the Simpson index of the mature-arm starts (old column name until B5), unlike the training data until B8. Since B3 the two overhang features are defined differently from the training data (signed, from `output.mrd`, blank without star reads) until B8 rebuilds it. The entropy features in `training_data/` are computed by functions kept in `folding_properties.py` but not written out.
 
 ### Known issues not yet in REVISIONS.md
