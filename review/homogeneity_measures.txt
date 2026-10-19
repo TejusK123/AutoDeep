@@ -1,0 +1,43 @@
+Toy cases (reads at each 5' start):
+                          simpson  p_max  within1  H_bits   H_mm  H_norm  mad_nt
+1000 at one start           1.000  1.000    1.000   0.000  0.000   0.000   0.000
+1000 + 10 stray reads       0.980  0.990    0.990   0.113  0.120   0.033   0.074
+500 + 500, 1 nt apart       0.499  0.500    1.000   1.000  1.001   1.000   0.500
+the same + 50 stray         0.455  0.476    0.952   1.229  1.230   0.775   0.905
+90% + 10% at +1 nt          0.820  0.900    1.000   0.469  0.470   0.469   0.100
+90% + 10% scattered         0.811  0.900    0.900   0.801  0.808   0.232   0.750
+scattered over 20 starts    0.045  0.050    0.100   4.322  4.390   1.000   9.500
+
+2907 training loci; mature-arm reads per locus: median 161, fewer than 50: 903, fewer than 2: 1; a single start: 1105
+
+Spearman correlation between the measures:
+         simpson  p_max  within1  H_bits  H_mm  H_norm  mad_nt
+simpson     1.00   1.00     0.69   -1.00 -1.00   -0.99   -0.99
+p_max       1.00   1.00     0.69   -1.00 -1.00   -0.99   -0.99
+within1     0.69   0.69     1.00   -0.71 -0.71   -0.63   -0.73
+H_bits     -1.00  -1.00    -0.71    1.00  1.00    0.98    0.99
+H_mm       -1.00  -1.00    -0.71    1.00  1.00    0.98    0.99
+H_norm     -0.99  -0.99    -0.63    0.98  0.98    1.00    0.98
+mad_nt     -0.99  -0.99    -0.73    0.99  0.99    0.98    1.00
+
+AUC of each measure alone (oriented so that higher = more homogeneous):
+  simpson  Confident vs falsepositive 0.580   Candidate vs falsepositive 0.612   Confident vs Candidate 0.455
+  p_max    Confident vs falsepositive 0.577   Candidate vs falsepositive 0.609   Confident vs Candidate 0.455
+  within1  Confident vs falsepositive 0.541   Candidate vs falsepositive 0.617   Confident vs Candidate 0.390
+  H_bits   Confident vs falsepositive 0.581   Candidate vs falsepositive 0.615   Confident vs Candidate 0.452
+  H_mm     Confident vs falsepositive 0.582   Candidate vs falsepositive 0.616   Confident vs Candidate 0.453
+  H_norm   Confident vs falsepositive 0.584   Candidate vs falsepositive 0.598   Confident vs Candidate 0.473
+  mad_nt   Confident vs falsepositive 0.585   Candidate vs falsepositive 0.618   Confident vs Candidate 0.453
+
+Depth: mean shift when reads are thinned to 25% and 10% (5 draws each), in SDs of the measure across loci, for all loci and for loci with fewer than 50 mature-arm reads; Spearman between full depth and 10%
+  simpson  25%: -0.001   10%: +0.005   10%, <50 reads: +0.018   Spearman 0.955
+  p_max    25%: +0.016   10%: +0.053   10%, <50 reads: +0.116   Spearman 0.949
+  within1  25%: +0.008   10%: +0.036   10%, <50 reads: +0.091   Spearman 0.923
+  H_bits   25%: -0.045   10%: -0.109   10%, <50 reads: -0.187   Spearman 0.948
+  H_mm     25%: -0.027   10%: -0.079   10%, <50 reads: -0.166   Spearman 0.947
+  H_norm   25%: +0.005   10%: -0.035   10%, <50 reads: -0.200   Spearman 0.934
+  mad_nt   25%: -0.012   10%: -0.045   10%, <50 reads: -0.108   Spearman 0.948
+
+First nucleotide (output.mrd prints a mismatched base in upper case):
+  mature-arm reads with a mismatched first base: 0.39%
+  Simpson index with the first base as part of the start, minus position only: differs by more than 0.05 in 26 loci; Spearman 0.986
