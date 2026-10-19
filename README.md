@@ -70,6 +70,7 @@ A directory named "AutoDeepRun" which contains
 #### Description
 
 Trains a new XGBoost model with user data. Must be run within the AutoDeepRun directory.
+Each set of hyperparameters (tuned with Ray Tune and Optuna, or given with `-hp`) is scored on the same ten stratified 80/20 splits, with the classes weighted equally; early stopping on a held-out fifth of each 80% chooses the number of trees unless `-hp` sets `n_estimators`. The saved model is the chosen set refit on all rows, weighted the same way.
 The bundled model and training data are never changed; everything is written to the output directory.
 
 #### Input 
@@ -78,8 +79,8 @@ The bundled model and training data are never changed; everything is written to 
 #### Output
 In `--out_dir` (default `AutoDeepRun/models/<timestamp>/`):
 * miRNA_model.json: the trained model, for `AutoDeep infer <directory> --model <path>`
-* config.json: hyperparameters, options and data used
-* metrics.json: accuracy and F1 scores
+* config.json: hyperparameters (including the number of trees), seed, options, data used, and how the model was scored and fit
+* metrics.json: mean and SD of accuracy and F1 scores over the ten splits
 * user_data.csv: your labelled loci (pass it to `-t` to reuse them)
 * training_log.csv: tuning log (automatic tuning only)
 
