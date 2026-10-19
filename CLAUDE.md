@@ -8,7 +8,7 @@ We are revising the code in response to a mock peer review. The work list, with 
 
 ### Status (18 Oct 2026, after B3)
 
-- Phase A is complete; all merged into `refactoring`:
+- Phase A: A1-A7 merged into `refactoring`; A8 (locus IDs with commas, added 18 Oct 2026: `AutoDeep infer` fails on the FAW run) is open and must land before B8:
   - A1: fixed flag/label encoding
   - A2: training writes to a run folder
   - A3: no `eval()` on hyperparameter files
@@ -19,7 +19,7 @@ We are revising the code in response to a mock peer review. The work list, with 
 - B1 is complete (PRs #2 and #10): the 5' features come from `output.mrd` and equal the pypdf values, and `arm_counts` reproduces miRDeep2's mature/star/loop counts in `result.csv` (tutorial: 8 loci; Pomonella: 212).
 - B3 is complete (PR #11): Q3 answered. Signed 3' overhangs at the Drosha end ("Bot") and the Dicer end ("Top") by the duplex rule (Tejus's choice over miRDeep2's `find_star` rule: count from the terminal mature-star base pair, ignoring pairs with the flanks or loop), from the `obs` star and `pri_struct` in `output.mrd` (no refold: Tejus's choice, miRDeep2's ViennaRNA is current); blank without star reads. The reasons are in METHODS_CHANGES.md (B3, "For the paper"). The training CSVs keep the old unsigned values until B8. Until D1 retrains, the shipped model sees blanks it was never trained on: on Pomonella 29/212 labels change (28 Candidate and 1 Confident to falsepositive), all of them loci without star reads.
 - Also merged, outside REVISIONS: portable conda env for osx-arm64; training reads `training_data_pre/`.
-- Next session: ask Tejus where to start. B2 and B4-B8 wait on answers to Q1, Q2 and Q4-Q9 (B2 on Q2, the 5'-homogeneity denominator; `arm_counts` supports its mature-arm option).
+- Next session: ask Tejus where to start. A8 needs no answers. B2 and B4-B8 wait on answers to Q1, Q2 and Q4-Q9 (B2 on Q2, the 5'-homogeneity denominator; `arm_counts` supports its mature-arm option).
 - CI (`.github/workflows/tests.yml`) is green: on PR #11 (123 passed, 7 skipped, the Pomonella tests, on ubuntu-latest and macos-latest; 130 passed locally with the Pomonella run) and on `refactoring` after the merge (412efc5). It runs on every push and PR to `refactoring` and `main`; check it with `gh pr checks <n>` before handing a PR over.
 
 ### Waiting on Tejus (not code)
@@ -27,6 +27,7 @@ We are revising the code in response to a mock peer review. The work list, with 
 - Regenerate Table 2 (SVM/KNN/MLP vs XGBoost) with the fixed `alt_model_test.py`; the old script trained on `training_data/` and never saved a usable model.
 - `review/METHODS_CHANGES.md`: old Methods text for A4 and B3 (overhang definitions, also in Table 1); hardware for the A6 reproducibility statement once D1 has retrained the model.
 - Answers to Q1, Q2 and Q4-Q9 in `review/REVISIONS.md`.
+- Whether `testing/Validation/` (CLAUDE.local.md) holds the Phase 2 test sets, and where the miRDeep2 runs behind them are; C1 needs their output.mrd and result_*.csv.
 - MirGeneDB's terms of use for the ten sequences in `tests/data/mirgenedb_hsa_ten.csv` (the site states no licence).
 - The `testfeatures` branch on GitHub (kept; not merged): one commit, 25ad41a (1 Mar 2025, "testing_features"), rewrites eight `training_data/original_data_*.csv` files and the model weights, and that content exists in no other branch. Possibly relevant to B8 (where the seven negative FAW "Bot" values came from). Keep, archive as a tag, or delete: Tejus to decide.
 
@@ -73,7 +74,7 @@ We are revising the code in response to a mock peer review. The work list, with 
 
 - Conda env `AutoDeep` from `AutoDeep/AutoDeep.yml` (works on osx-arm64 and linux-64): Python 3.9, numpy 1.23.5, xgboost 2.1.1, ViennaRNA 2.7.0, ray 2.37, optuna 4.1, pandas 2.2.2, scikit-learn 1.5.1, pdf2image 1.17.0 (exact pin required), pytest. No pypdf.
 - On Tejus's Mac the env is not activated in Claude's shell: call `/Users/tkoti/miniconda3/envs/AutoDeep/bin/python` directly, and put that `bin/` on PATH when running `AutoDeep.sh` (RNAfold and graphviz's `dot` live there).
-- Tests: `PYTHONDONTWRITEBYTECODE=1 python -m pytest tests` from the repo root. Set `AUTODEEP_TEST_RUN` to the local Pomonella test run (path in CLAUDE.local.md) to include the tests that need it; without it they are skipped (as in CI). Tejus allows using that run for any test or check; read it in place, never write into it.
+- Tests: `PYTHONDONTWRITEBYTECODE=1 python -m pytest tests` from the repo root. Set `AUTODEEP_TEST_RUN` to the local testing folder (path in CLAUDE.local.md) to include the tests that need it (they read its `mirdeep_Pomonella/`); without it they are skipped (as in CI). That folder holds the miRDeep2 run behind every training CSV (all eight species), the AutoDeep runs that made the CSVs and the probable Phase 2 validation sets; CLAUDE.local.md maps them. Tejus allows using anything in it for any test or check, and wants it used (e.g. check a feature change on all eight species, not only Pomonella); read it in place, never write into it.
 - A separate conda env `mirdeep2` (miRDeep2 2.0.1.3 from bioconda) is on Tejus's Mac, used to make the tutorial example; see `examples/mirdeep2_tutorial/README.md`.
 - Reanalysis on this Mac differs slightly from `reanalysis_baseline.txt` in the XGBoost rows only (by up to 0.01; run-to-run identical). The baseline ran on x86 with NumPy 2.x, so both architecture and library versions differ. Compare later runs with `review/reanalysis_osx-arm64.txt`.
 - Machine-specific paths, such as the miRDeep2 run directories behind each training CSV, are in CLAUDE.local.md
