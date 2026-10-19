@@ -41,7 +41,7 @@ We are revising the code in response to a mock peer review. The work list, with 
 ### Open decisions (ask Tejus; do not decide)
 
 - Q1, Q2 and Q4-Q9 in REVISIONS.md are unanswered; B2, B4-B8 and C1/C3/C5 depend on them. Q1 (seed homology: labelling criterion or feature) affects the most items.
-- Feature set: since B1 the pipeline produces the shipped model's features (`five_prime_process_signal_...`, `num_locis`). Since B3 the two overhang features are defined differently from the training data (signed, from `output.mrd`, blank without star reads) until B8 rebuilds it. The entropy features in `training_data/` are computed by functions kept in `folding_properties.py` but not written out.
+- Feature set: since B1 the pipeline produces the shipped model's features (`five_prime_process_signal_...`, `num_locis`). Since B2, 5' homogeneity is the Simpson index of the mature-arm starts (old column name until B5), unlike the training data until B8. Since B3 the two overhang features are defined differently from the training data (signed, from `output.mrd`, blank without star reads) until B8 rebuilds it. The entropy features in `training_data/` are computed by functions kept in `folding_properties.py` but not written out.
 
 ### Known issues not yet in REVISIONS.md
 
@@ -56,7 +56,7 @@ We are revising the code in response to a mock peer review. The work list, with 
 - `AutoDeep/AutoDeep`: bash wrapper; put `AutoDeep/` on PATH to get the `AutoDeep` command (there is no setup.py)
 - `AutoDeep/scripts/AutoDeep.sh`: command dispatcher. `infer` runs init_data.py, RNAfold, csv_feature_extraction.py, folding_properties.py, boosted_forest_inference.py
 - `AutoDeep/scripts/features.py`: fixed encodings of the flag columns and labels (Candidate 0, Confident 1, falsepositive 2), shared by all scripts (A1)
-- `AutoDeep/scripts/mrd.py`: parses miRDeep2's `output.mrd` (per locus: `exp` and `obs` strings, `pri_seq`, `pri_struct` and reads; IDs without commas, as init_data.py leaves `result_*.csv`: `strip_commas`, A8) and computes 5' homogeneity, `num_locis`, per-arm read counts by miRDeep2's own rule (`arm_counts`; B1) and the signed 3' overhangs at both duplex ends from the terminal mature-star base pairs (`overhangs`, the duplex rule; B3)
+- `AutoDeep/scripts/mrd.py`: parses miRDeep2's `output.mrd` (per locus: `exp` and `obs` strings, `pri_seq`, `pri_struct` and reads; IDs without commas, as init_data.py leaves `result_*.csv`: `strip_commas`, A8) and computes 5' homogeneity (unbiased Simpson index of the mature-arm reads' 5' starts; B2), `num_locis`, per-arm read counts by miRDeep2's own rule (`arm_counts`, from `reads_by_arm`; B1) and the signed 3' overhangs at both duplex ends from the terminal mature-star base pairs (`overhangs`, the duplex rule; B3)
 - `AutoDeep/scripts/hyperparameters.py`: reads `-hp` files (text "name value", JSON, or a run's config.json) without running code (A3)
 - `AutoDeep/scripts/boosted_forest_inference.py`: selects the model's features by name; `--model PATH` (default: bundled model)
 - `AutoDeep/scripts/boosted_forest_training.py`: `AutoDeep train` (Ray Tune + OptunaSearch). Writes only to `--out_dir` (default `AutoDeepRun/models/<timestamp>/`): miRNA_model.json, config.json, metrics.json, user_data.csv, tuning log. `-t` takes several files; `--seed` (default 42) seeds splits, XGBoost and the Optuna sampler. `load_training_set()` and `tuning_search_alg()` are shared with alt_model_test.py
@@ -66,8 +66,8 @@ We are revising the code in response to a mock peer review. The work list, with 
 - `AutoDeep/training_data/`: 3,180 loci in 13 `new_data_*` CSVs with entropy-based 5' features (`normalized_entropy`, `normalized_entropy_s`); not used by the pipeline or shipped model
 - `AutoDeep/model_weights/miRNA_model.json`: shipped model (XGBoost 2.1.1, 983 rounds x 3 classes, depth 5)
 - `AutoDeep/AutoDeep.yml`: portable conda spec and the only requirements list (no requirements.txt); `AutoDeep/AutoDeep.linux-64.lock.yml`: exact Linux env the shipped model was trained in
-- `review/`: REVISIONS.md, reanalysis.py (reviewer's evaluation script), reanalysis_baseline.txt (its output on commit 133bf14), reanalysis_osx-arm64.txt (its output on Tejus's Mac), METHODS_CHANGES.md
-- `tests/`: pytest suite (136 tests); `conftest.py` puts `AutoDeep/scripts` on the import path. `tests/data/mirgenedb_hsa_ten.csv`: ten MirGeneDB 3.0 human precursors with ViennaRNA 2.7.0 folds, chosen in advance for the B3 overhang test
+- `review/`: REVISIONS.md, reanalysis.py (reviewer's evaluation script), reanalysis_baseline.txt (its output on commit 133bf14), reanalysis_osx-arm64.txt (its output on Tejus's Mac), METHODS_CHANGES.md, homogeneity_measures.py (B2's comparison of 5' homogeneity measures on the testing folder; output in homogeneity_measures.txt)
+- `tests/`: pytest suite (139 tests); `conftest.py` puts `AutoDeep/scripts` on the import path. `tests/data/mirgenedb_hsa_ten.csv`: ten MirGeneDB 3.0 human precursors with ViennaRNA 2.7.0 folds, chosen in advance for the B3 overhang test
 - `examples/mirdeep2_tutorial/`: miRDeep2's tutorial output (`mirdeep2_output/`) and AutoDeep's expected `xgboost_judgement.csv`; checked by `tests/test_example.py`. Regenerate the expected file when a Phase B item changes a feature on purpose
 - `.github/workflows/tests.yml`: CI, pytest on ubuntu-latest and macos-latest in an env built from `AutoDeep.yml`, on pushes and PRs to `refactoring` and `main`
 

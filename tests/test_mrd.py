@@ -1,4 +1,9 @@
-"""B1: 5' homogeneity, num_locis and per-arm read counts from miRDeep2's output.mrd."""
+"""B1: 5' homogeneity, num_locis and per-arm read counts from miRDeep2's output.mrd.
+
+B2 redefined 5' homogeneity as the unbiased Simpson index of the mature-arm reads' 5' starts.
+"""
+import math
+
 import pytest
 
 from mrd import Locus, arm_counts, five_prime_features, parse_mrd
@@ -72,20 +77,19 @@ def test_parse_rejects_ids_equal_without_commas(tmp_path):
         parse_mrd(str(path))
 
 
-def test_homogeneity_and_num_locis(loci):
-    homogeneity, num_locis = five_prime_features(loci["locus_1"].reads)
-    # Dominant read starts 'a' at 4: reads 1 and 2 (15). Denominator: every read
-    # starting at most 20 nt after it, so all but read 6 (10+5+3+2+4 = 24).
-    assert homogeneity == pytest.approx(15 / 24)
-    assert num_locis == 6
-
-
-def test_tie_goes_to_first_read_in_file(loci):
-    # Reads 7 and 8 both have 6 reads; read 7 comes first, and read 9 starts
-    # at the same place but with a different (mismatched) nucleotide.
-    homogeneity, num_locis = five_prime_features(loci["locus_2"].reads)
-    assert homogeneity == pytest.approx(6 / 13)
+def test_homogeneity_counts_starts_whatever_the_first_base(loci):
+    # All three reads are on the mature arm (5-8, allowing starts from 3). Read 9
+    # starts at 3 like read 7 but with a mismatched first base: the same start.
+    homogeneity, num_locis = five_prime_features(loci["locus_2"])
+    assert homogeneity == pytest.approx((7 * 6 + 6 * 5) / (13 * 12))
     assert num_locis == 3
+
+
+def test_homogeneity_blank_without_two_mature_reads(loci):
+    # locus_1's reads are all on the star, the loop or past the precursor
+    homogeneity, num_locis = five_prime_features(loci["locus_1"])
+    assert math.isnan(homogeneity)
+    assert num_locis == 6
 
 
 # 5' flank 1-5, mature 6-13, loop 14-25, star 26-33, 3' flank 34-40. With
@@ -132,3 +136,23 @@ def test_failed_structure_has_no_arms():
 def test_missing_exp_raises():
     with pytest.raises(ValueError):
         arm_counts(Locus(None, [read(6, 13, 10)]))
+    with pytest.raises(ValueError):
+        five_prime_features(Locus(None, [read(6, 13, 10)]))
+
+
+def test_homogeneity_is_simpson_index_of_mature_arm_starts():
+    # Mature arm: starts 6 (8 reads, two different 3' ends) and 7 (2 reads). The
+    # read starting at 3 is outside miRDeep2's mature window; star and loop reads
+    # do not count. Unbiased Simpson index: sum n(n - 1) / (N(N - 1)).
+    locus = Locus(EXP, [read(6, 13, 6), read(6, 12, 2), read(7, 13, 2), read(3, 13, 100),
+                        read(26, 33, 50), read(16, 23, 9)])
+    homogeneity, num_locis = five_prime_features(locus)
+    assert homogeneity == pytest.approx((8 * 7 + 2 * 1) / (10 * 9))
+    assert num_locis == 6
+
+
+def test_homogeneity_of_one_mature_read_is_blank():
+    homogeneity, _ = five_prime_features(Locus(EXP, [read(6, 13, 1), read(26, 33, 50)]))
+    assert math.isnan(homogeneity)
+    homogeneity, _ = five_prime_features(Locus(EXP, [read(6, 13, 2)]))
+    assert homogeneity == 1

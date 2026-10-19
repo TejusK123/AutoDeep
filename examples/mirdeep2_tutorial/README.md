@@ -7,7 +7,7 @@ A small, public miRDeep2 run to try AutoDeep on, and the output AutoDeep is expe
 - `mirdeep2_output/`: the two files AutoDeep reads from a miRDeep2 run, `result_16_10_2026_t_19_57_25.csv` and `output.mrd` (from `mirdeep_runs/run_16_10_2026_t_19_57_25/`), unchanged.
 - `expected/xgboost_judgement.csv`: `AutoDeep infer` on that folder with the bundled model (`AutoDeep/model_weights/miRNA_model.json`).
 
-The tutorial yields one novel candidate, `chrII:11534525-11540624_7`, which AutoDeep labels Confident (probabilities: Candidate 0.400, Confident 0.579, false positive 0.021). miRDeep2 also detects 6 known C. elegans miRNAs; AutoDeep only classifies novel candidates.
+The tutorial yields one novel candidate, `chrII:11534525-11540624_7`, which AutoDeep labels Confident (probabilities: Candidate 0.392, Confident 0.587, false positive 0.021). miRDeep2 also detects 6 known C. elegans miRNAs; AutoDeep only classifies novel candidates.
 
 ## Run AutoDeep on it
 
