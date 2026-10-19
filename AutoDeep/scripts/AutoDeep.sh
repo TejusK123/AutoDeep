@@ -141,6 +141,12 @@ DESCRIPTION:
     This allows customization of model parameters and optimization for
     specific organisms or datasets.
 
+    Each set of hyperparameters (tuned, or from -hp) is scored on the same ten
+    stratified 80/20 splits, with the classes weighted equally. The number of
+    trees is chosen by early stopping on a held-out fifth of each 80% (at most
+    3000 trees), unless -hp sets n_estimators. The saved model is the chosen
+    set refit on all rows, weighted the same way.
+
 OPTIONS:
     -h, --help                  Show this help message
     -t, --targets_path <path> [<path> ...]
@@ -174,6 +180,8 @@ HYPERPARAMETER CONFIG FORMAT:
     Valid parameters: max_depth, min_child_weight, subsample, eta, n_estimators,
                       gamma, base_score, alpha, lambda, colsample_bytree,
                       colsample_bylevel, colsample_bynode
+    Without n_estimators, early stopping chooses it. base_score is accepted
+    but has no effect on a three-class model.
     Example (text):
         max_depth 6
         eta 0.1
@@ -185,8 +193,9 @@ OUTPUT:
     Written to --out_dir (default: AutoDeepRun/models/<timestamp>/);
     nothing inside the AutoDeep installation is changed:
     - miRNA_model.json   (trained model; use with AutoDeep infer --model)
-    - config.json        (hyperparameters, seed, options, data used)
-    - metrics.json       (accuracy and F1 scores)
+    - config.json        (hyperparameters incl. the number of trees, seed,
+                          options, data used, how the model was scored and fit)
+    - metrics.json       (mean and SD of accuracy and F1 scores over the ten splits)
     - user_data.csv      (your labelled loci, if -t was given)
     - training_log.csv   (tuning log, if using auto-tuning)
 

@@ -7,6 +7,13 @@ import os
 # alt_model_test.py trains on the same data.
 TRAINING_DATA = os.path.join(os.path.dirname(os.path.dirname(os.path.realpath(__file__))), "training_data_pre")
 
+# Every configuration is scored on the same ten stratified 80/20 splits. Unless it
+# sets n_estimators, boosting stops when the weighted log-loss on a held-out fifth
+# of the 80% has not improved for EARLY_STOPPING_ROUNDS rounds (D1).
+N_SPLITS = 10
+MAX_ROUNDS = 3000
+EARLY_STOPPING_ROUNDS = 50
+
 
 def main():
     parser = argparse.ArgumentParser(
@@ -177,18 +184,20 @@ def load_training_set(targets_paths, no_db_data, out_dir):
 
 
 def tuning_search_space():
-    """Ray Tune search space for the XGBoost hyperparameters."""
+    """Ray Tune search space for the XGBoost hyperparameters.
+
+    n_estimators is not tuned: early stopping chooses it (score_config). base_score
+    is left out because it has no effect under softmax.
+    """
     from ray import tune
 
     return {
         "objective": "multi:softprob",
-        "max_depth": tune.randint(1, 6),
+        "max_depth": tune.randint(2, 9),  # 2-8: randint excludes its upper bound
         "min_child_weight": tune.choice([1, 2, 3, 4]),
         "subsample": tune.uniform(0.5, 1.0),
-        "eta": tune.loguniform(1e-4, 1e-1),
-        "n_estimators": tune.randint(100, 1000),
+        "eta": tune.loguniform(0.005, 0.3),
         "gamma": tune.uniform(0, 1),
-        "base_score": tune.uniform(0.33, 0.66),
         "alpha" : tune.loguniform(1e-3, 10),
         "lambda" : tune.loguniform(1e-3, 1),
         "colsample_bytree" : tune.uniform(0.8, 1),
@@ -207,13 +216,72 @@ def tuning_search_alg(seed):
     return OptunaSearch(sampler=optuna.samplers.TPESampler(seed=seed, n_startup_trials=10))
 
 
+def balanced_weights(targets):
+    """Sample weights that make the three classes count equally."""
+    from sklearn.utils import class_weight
+
+    return class_weight.compute_sample_weight(class_weight='balanced', y=targets)
+
+
+def score_config(config, features, targets, seed):
+    """Score an XGBoost configuration on N_SPLITS stratified 80/20 splits (random states seed, seed + 1, ...).
+
+    The classes are weighted equally (balanced sample weights) in training and in
+    early stopping. Unless config sets n_estimators, a stratified fifth of each 80%
+    is held out, and boosting stops once its weighted log-loss has not improved for
+    EARLY_STOPPING_ROUNDS rounds (at most MAX_ROUNDS trees). Returns the mean and SD
+    of accuracy, weighted F1 and macro F1 on the 20%, and n_estimators: the mean
+    number of trees over the splits (or config's own).
+    """
+    import numpy as np
+    from sklearn.metrics import accuracy_score, f1_score
+    from sklearn.model_selection import train_test_split
+    from xgboost import XGBClassifier
+
+    scores = {"accuracy": [], "weighted_f1_score": [], "macro_f1_score": []}
+    rounds = []
+    for i in range(N_SPLITS):
+        X_train, X_test, y_train, y_test = train_test_split(features, targets, test_size=0.2, stratify=targets,
+                                                            random_state=seed + i)
+        if "n_estimators" in config:
+            model = XGBClassifier(**config, random_state=seed)
+            model.fit(X_train, y_train, sample_weight=balanced_weights(y_train))
+            rounds.append(config["n_estimators"])
+        else:
+            X_fit, X_stop, y_fit, y_stop = train_test_split(X_train, y_train, test_size=0.2, stratify=y_train,
+                                                            random_state=seed + i)
+            model = XGBClassifier(**config, n_estimators=MAX_ROUNDS, early_stopping_rounds=EARLY_STOPPING_ROUNDS,
+                                  eval_metric="mlogloss", random_state=seed)
+            model.fit(X_fit, y_fit, sample_weight=balanced_weights(y_fit), eval_set=[(X_stop, y_stop)],
+                      sample_weight_eval_set=[balanced_weights(y_stop)], verbose=False)
+            rounds.append(model.best_iteration + 1)
+        y_pred = model.predict(X_test)  # at the best iteration, after early stopping
+        scores["accuracy"].append(accuracy_score(y_test, y_pred))
+        scores["weighted_f1_score"].append(f1_score(y_test, y_pred, average='weighted'))
+        scores["macro_f1_score"].append(f1_score(y_test, y_pred, average='macro'))
+
+    return {"mean_accuracy": float(np.mean(scores["accuracy"])), "std_accuracy": float(np.std(scores["accuracy"])),
+            "weighted_f1_score": float(np.mean(scores["weighted_f1_score"])),
+            "std_weighted_f1_score": float(np.std(scores["weighted_f1_score"])),
+            "macro_f1_score": float(np.mean(scores["macro_f1_score"])),
+            "std_macro_f1_score": float(np.std(scores["macro_f1_score"])),
+            "n_estimators": int(round(np.mean(rounds)))}
+
+
+def fit_final(config, features, targets, seed):
+    """The chosen configuration fit on every row, with the classes weighted equally as in scoring."""
+    from xgboost import XGBClassifier
+
+    model = XGBClassifier(**config, random_state=seed)
+    model.fit(features, targets, sample_weight=balanced_weights(targets))
+    return model
+
+
 def train(args):
     import xgboost as xgb
     from xgboost import XGBClassifier
-    import numpy as np
     from sklearn.model_selection import train_test_split
-    from sklearn.metrics import accuracy_score, f1_score
-    from sklearn.utils import class_weight
+    from sklearn.metrics import accuracy_score
     import json
     import time
     from hyperparameters import load_xgboost_hyperparameters
@@ -255,72 +323,32 @@ def train(args):
     
     if args.hyperparameters:
         print("Using manual hyperparameters")
-        X_train, X_test, y_train, y_test = train_test_split(merged_data, targets, test_size=0.2, stratify=targets,
-                                                            random_state=args.seed)
-        classes_weights = class_weight.compute_sample_weight(class_weight='balanced', y=y_train)
         try:
             config = load_xgboost_hyperparameters(args.hyperparameters)
         except ValueError as e:
             print(f"Error: {e}")
             sys.exit(1)
-        best_model = XGBClassifier(**config, random_state=args.seed)
-        best_model.fit(X_train, y_train, sample_weight=classes_weights)
-        y_pred = best_model.predict(X_test)
-        accuracy = accuracy_score(y_test, y_pred)
-        weighted_f1score = f1_score(y_test, y_pred, average='weighted')
-        macro_f1score = f1_score(y_test, y_pred, average='macro')
-        print(f"Tuned Model Metrics:")
-        print(f"Accuracy: {accuracy}")
-        print(f"Weighted F1 score: {weighted_f1score}")
-        print(f"Macro F1 score: {macro_f1score}")
-        metrics.update(accuracy=float(accuracy), weighted_f1_score=float(weighted_f1score),
-                       macro_f1_score=float(macro_f1score))
+        scores = score_config(config, merged_data, targets, args.seed)
+        config = {**config, "n_estimators": scores.pop("n_estimators")}
+        print(f"Metrics over {N_SPLITS} stratified 80/20 splits:")
+        for key, value in scores.items():
+            print(f"{key} : {value}")
+        metrics.update(scores)
     else:
         #----raytune hyperparameter tuning
         print("Starting hyperparameter tuning")
         from ray import tune, train
-        from ray.tune.schedulers import ASHAScheduler
 
         seed = args.seed
 
         def model_training(config):
-            weighted_f1_scores = []
-            accuracies = []
-            macro_f1_scores = []
-            for i in range(10):
-                # Every configuration is scored on the same ten splits
-                X_train, X_test, y_train, y_test = train_test_split(merged_data, targets, test_size=0.2, stratify=targets,
-                                                                    random_state=seed + i)
-                classes_weights = class_weight.compute_sample_weight(class_weight='balanced', y=y_train)
-                model = XGBClassifier(**config, random_state=seed)
-                model.fit(X_train, y_train, sample_weight=classes_weights)
-                y_pred = model.predict(X_test)
-                accuracy = accuracy_score(y_test, y_pred)
-                weighted_f1score = f1_score(y_test, y_pred, average='weighted')
-                macro_f1score = f1_score(y_test, y_pred, average='macro')
-                accuracies.append(accuracy)
-                macro_f1_scores.append(macro_f1score)
-                weighted_f1_scores.append(weighted_f1score)
-
-            accuracy = np.mean(accuracies)
-            stds_acc = np.std(accuracies)
-            weighted_f1_score = np.mean(weighted_f1_scores)
-            stds_weighted_f1_score = np.std(weighted_f1_scores)
-            macro_f1_score = np.mean(macro_f1_scores)
-            stds_macro_f1_score = np.std(macro_f1_scores)
-            train.report({'mean_accuracy': accuracy,
-                        "std_accuracy" : stds_acc, 
-                        'weighted_f1_score' : weighted_f1_score,
-                        'std_weighted_f1_score' : stds_weighted_f1_score,
-                        "macro_f1_score" : macro_f1_score,
-                        "std_macro_f1_score" : stds_macro_f1_score,
-                        'done': True})
+            # One report per trial, so no scheduler: every trial runs to the end
+            train.report({**score_config(config, merged_data, targets, seed), 'done': True})
 
         tuner = tune.Tuner(
             model_training, 
             tune_config = tune.TuneConfig(num_samples = args.tuning_rounds, 
                                         search_alg = tuning_search_alg(seed), 
-                                        scheduler = ASHAScheduler(),
                                         metric = "weighted_f1_score", 
                                         mode = "max"), 
             param_space = tuning_search_space()
@@ -339,13 +367,15 @@ def train(args):
         df.to_csv(data_dir, index=False)
         print(f"Training log saved at: {data_dir}")
 
-        config = best_result.config
+        config = {**best_result.config, "n_estimators": int(best_result.metrics["n_estimators"])}
         metrics.update({key: float(value) for key, value in best_result.metrics.items()
                         if key in ("mean_accuracy", "std_accuracy", "weighted_f1_score", "std_weighted_f1_score",
                                    "macro_f1_score", "std_macro_f1_score")})
-        metrics["accuracy"] = metrics["mean_accuracy"]
-        best_model = XGBClassifier(**best_result.config, random_state=seed)
-        best_model.fit(X_train, y_train)
+
+    # The saved model: the chosen configuration refit on every row, weighted as in scoring (D1)
+    metrics["accuracy"] = metrics["mean_accuracy"]
+    print(f"Fitting the final model on all {n_rows} rows with {config['n_estimators']} trees")
+    best_model = fit_final(config, merged_data, targets, args.seed)
 
     run_config = {
         "hyperparameters": {key: (value.item() if hasattr(value, "item") else value) for key, value in config.items()},
@@ -354,6 +384,11 @@ def train(args):
         "training_data": None if args.no_db_data else data_path,
         "n_rows": n_rows,
         "class_counts": class_counts,
+        "scoring": {"splits": N_SPLITS, "test_size": 0.2, "stratified": True, "sample_weight": "balanced",
+                    "early_stopping": {"held_out": 0.2, "metric": "weighted mlogloss",
+                                       "rounds": EARLY_STOPPING_ROUNDS, "max_trees": MAX_ROUNDS,
+                                       "n_estimators": "mean over the splits"}},
+        "final_fit": {"n_rows": n_rows, "sample_weight": "balanced"},
         "xgboost_version": xgb.__version__,
         "created": time.strftime("%Y-%m-%d %H:%M:%S"),
     }
