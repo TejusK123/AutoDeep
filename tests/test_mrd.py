@@ -55,6 +55,23 @@ def test_parse_keeps_obs_and_precursor(loci):
     assert loci["locus_2"].pri_struct is None
 
 
+def test_parse_removes_commas_from_ids(tmp_path):
+    # A8: init_data.py removes every comma from result_*.csv, so the IDs from
+    # output.mrd must lose theirs too, or no locus is found
+    path = tmp_path / "output.mrd"
+    path.write_text(MRD.replace(">locus_1", ">chromosome_8,_ZJU_Sfru_1.0,_12098"))
+    loci = parse_mrd(str(path))
+    assert list(loci) == ["chromosome_8_ZJU_Sfru_1.0_12098", "locus_2"]
+    assert [count for _, count in loci["chromosome_8_ZJU_Sfru_1.0_12098"].reads] == [10, 5, 3, 2, 4, 7]
+
+
+def test_parse_rejects_ids_equal_without_commas(tmp_path):
+    path = tmp_path / "output.mrd"
+    path.write_text(MRD.replace(">locus_1", ">locus,_2"))
+    with pytest.raises(ValueError, match="locus_2"):
+        parse_mrd(str(path))
+
+
 def test_homogeneity_and_num_locis(loci):
     homogeneity, num_locis = five_prime_features(loci["locus_1"].reads)
     # Dominant read starts 'a' at 4: reads 1 and 2 (15). Denominator: every read
