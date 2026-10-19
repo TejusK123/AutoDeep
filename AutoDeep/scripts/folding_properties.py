@@ -352,7 +352,7 @@ num_locis = []
 drosha_overhangs = []
 dicer_overhangs = []
 for item in tqdm(loci):
-	homogeneity, loci_count = five_prime_features(mrd_loci[item].reads)
+	homogeneity, loci_count = five_prime_features(mrd_loci[item])
 	five_prime_process_signal_selected_row_count_sum_over_mature_count_sum.append(homogeneity)
 	num_locis.append(loci_count)
 	# Signed 3' overhangs; blank for loci without star reads
@@ -360,6 +360,8 @@ for item in tqdm(loci):
 	drosha_overhangs.append(drosha)
 	dicer_overhangs.append(dicer)
 
+# 5' homogeneity (B2: Simpson index of the mature-arm starts) keeps its old column name
+# until B5 renames the features, since the model selects them by name
 signaling_df = pd.DataFrame({'provisional_id': loci, "five_prime_process_signal_selected_row_count_sum_over_mature_count_sum" : five_prime_process_signal_selected_row_count_sum_over_mature_count_sum,  'num_locis' : num_locis})
 intersected_data = pd.merge(signaling_df, intersected_data, on='provisional_id')
 # "Bot" is the Drosha end (base of the stem), "Top" the Dicer end (loop side). They

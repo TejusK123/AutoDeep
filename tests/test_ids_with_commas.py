@@ -3,7 +3,9 @@
 The S. frugiperda (FAW) run's contig names contain commas. init_data.py removes
 them from result_*.csv (this copy of the run was already rewritten that way),
 while output.mrd keeps them. The pipeline must still find every locus and give
-the 5' features of the training rows made from this run.
+the number of distinct reads of the training rows made from this run, and the
+5' homogeneity computed from output.mrd (B2 redefined it; the training rows
+keep the old values until B8).
 
 Needs the local run, so it is skipped unless AUTODEEP_TEST_RUN points at a
 directory holding mirDeep_FAW/ (result_*.csv, output.mrd).
@@ -17,6 +19,8 @@ import sys
 import pandas as pd
 import pytest
 
+from mrd import five_prime_features, parse_mrd
+
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 PKG = os.path.join(REPO, "AutoDeep")
 TRAINING_CSV = os.path.join(PKG, "training_data_pre", "original_data_FAW.csv")
@@ -25,10 +29,10 @@ ENV = dict(os.environ, PYTHONDONTWRITEBYTECODE="1", PATH=os.path.dirname(sys.exe
 
 pytestmark = pytest.mark.skipif(not RUN, reason="set AUTODEEP_TEST_RUN to the local testing folder")
 
-FIVE_PRIME = ["five_prime_process_signal_selected_row_count_sum_over_mature_count_sum", "num_locis"]
+HOMOGENEITY = "five_prime_process_signal_selected_row_count_sum_over_mature_count_sum"
 
 
-def test_faw_run_gives_training_5p_features(tmp_path):
+def test_faw_run_gives_every_locus_and_its_5p_features(tmp_path):
     # init_data.py rewrites result_*.csv in place, so run on a copy
     src = os.path.join(RUN, "mirDeep_FAW")
     run_dir = tmp_path / "mirDeep_FAW"
@@ -47,5 +51,8 @@ def test_faw_run_gives_training_5p_features(tmp_path):
     training = pd.read_csv(TRAINING_CSV).set_index("provisional_id")
     assert len(training) == 145
     assert sorted(out.index) == sorted(training.index)
-    pd.testing.assert_frame_equal(out.loc[training.index, FIVE_PRIME], training[FIVE_PRIME],
-                                  check_dtype=False, check_exact=False, atol=1e-9, rtol=0)
+    assert (out.loc[training.index, "num_locis"] == training["num_locis"]).all()
+    loci = parse_mrd(os.path.join(src, "output.mrd"))
+    expected = pd.Series({pid: five_prime_features(loci[pid])[0] for pid in training.index})
+    pd.testing.assert_series_equal(out.loc[training.index, HOMOGENEITY], expected, check_names=False,
+                                   check_exact=False, atol=1e-9, rtol=0)

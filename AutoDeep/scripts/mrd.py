@@ -17,7 +17,6 @@ import re
 from typing import List, NamedTuple, Optional, Tuple
 
 import numpy as np
-import pandas as pd
 
 READ_LINE = re.compile(r'^(\S+)_x(\d+)\s+([.A-Za-z]+)(?:\s|$)')
 FIELD_LINE = re.compile(r'^(exp|obs|pri_seq|pri_struct)\s+(\S+)')
@@ -79,47 +78,56 @@ def parse_mrd(path):
             for pid, reads in loci.items()}
 
 
+def reads_by_arm(locus):
+    """Yield (arm, start, count) for each read, start 1-based, arm None if it fits no region."""
+    if locus.exp is None:
+        raise ValueError("locus has no exp line")
+    regions = [(arm, locus.exp.index(mark) + 1, locus.exp.rindex(mark) + 1)
+               for arm, mark in ARMS if mark in locus.exp]
+    for aln, count in locus.reads:
+        beg = len(aln) - len(aln.lstrip('.')) + 1
+        end = len(aln.rstrip('.'))
+        arm = next((name for name, first, last in regions if first - FUZZ_BEG <= beg and end <= last + FUZZ_END), None)
+        yield arm, beg, count
+
+
 def arm_counts(locus):
     """Return {'mature', 'star', 'loop'} read counts, as miRDeep2 reports them in result.csv.
 
     Reads that fit none of the three regions, such as reads spanning two arms,
     count towards none.
     """
-    if locus.exp is None:
-        raise ValueError("locus has no exp line")
-    regions = [(arm, locus.exp.index(mark) + 1, locus.exp.rindex(mark) + 1)
-               for arm, mark in ARMS if mark in locus.exp]
     counts = {arm: 0 for arm, _ in ARMS}
-    for aln, count in locus.reads:
-        beg = len(aln) - len(aln.lstrip('.')) + 1
-        end = len(aln.rstrip('.'))
-        for arm, first, last in regions:
-            if first - FUZZ_BEG <= beg and end <= last + FUZZ_END:
-                counts[arm] += count
-                break
+    for arm, _, count in reads_by_arm(locus):
+        if arm is not None:
+            counts[arm] += count
     return counts
 
 
-def five_prime_features(reads):
+def five_prime_features(locus):
     """Return (5' homogeneity, number of distinct reads) for one locus.
 
-    Homogeneity is the share of reads that start at the same position and
-    with the same nucleotide as the most abundant read, out of all reads that
-    start no more than 20 nt after it. Ties for most abundant read go to the
-    first in file order. This reproduces the pypdf-based definition exactly.
+    Homogeneity is the unbiased Simpson index of the 5' start positions of the
+    reads on the mature arm (those arm_counts counts as mature): the
+    probability that two of them, drawn without replacement, start at the same
+    position, sum n_i (n_i - 1) / (N (N - 1)) over start positions i. Star and
+    loop reads do not count, so the value does not depend on which arm the
+    mature is on, and unlike the share of the commonest start or Shannon
+    entropy it is not biased by sequencing depth. A read with a mismatched
+    first base counts at its position. NaN with fewer than 2 mature-arm reads.
+
+    The number of distinct reads counts every read on the precursor.
     """
-    if not reads:
+    if not locus.reads:
         raise ValueError("locus has no aligned reads")
-    positions = [len(aln) - len(aln.lstrip('.')) for aln, _ in reads]
-    df = pd.DataFrame({
-        'nucleotide': [aln[p] for (aln, _), p in zip(reads, positions)],
-        'position': positions,
-        'count': [count for _, count in reads],
-    })
-    top = df.iloc[np.argmax(df['count'].to_numpy())]
-    selected = df[(df['nucleotide'] == top['nucleotide']) & (df['position'] == top['position'])]
-    window = df[(df['position'] - top['position']) <= 20]
-    return selected['count'].sum() / window['count'].sum(), df.shape[0]
+    starts = {}
+    for arm, beg, count in reads_by_arm(locus):
+        if arm == 'mature':
+            starts[beg] = starts.get(beg, 0) + count
+    n = np.array(list(starts.values()), dtype=float)
+    total = n.sum()
+    homogeneity = (n * (n - 1)).sum() / (total * (total - 1)) if total > 1 else math.nan
+    return homogeneity, len(locus.reads)
 
 
 def base_pairs(structure):
